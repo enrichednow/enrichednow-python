@@ -17,12 +17,6 @@ and query the job-postings datasets.
 pip install enrichednow
 ```
 
-> **Not on PyPI yet.** Until the first release is there, install it from this repository:
->
-> ```bash
-> pip install git+https://github.com/enrichednow/enrichednow-python
-> ```
-
 ## Quickstart
 
 Create an API key in the console under **API keys** and put it in the environment:
