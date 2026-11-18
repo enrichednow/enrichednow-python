@@ -1,7 +1,8 @@
-"""The resources of the API: scrapers, runs, usage and the datasets reads. Each exists twice, sync and async."""
+"""The resources of the API: scrapers, runs, usage, webhooks and the datasets reads. Each exists twice, sync and async."""
 from __future__ import annotations
 
 import time
+import uuid
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Mapping, Optional, Union
 
@@ -14,7 +15,20 @@ from ._base import (
     validate_wait,
 )
 from ._exceptions import WaitTimeoutError
-from ._models import Company, Posting, PostingDetail, Run, Scraper, ScraperDetails, Usage
+from ._models import (
+    Company,
+    Posting,
+    PostingDetail,
+    Run,
+    Scraper,
+    ScraperDetails,
+    Usage,
+    WebhookDelivery,
+    WebhookEndpoint,
+    WebhookEndpointList,
+    WebhookEndpointWithSecret,
+    WebhookSecret,
+)
 from ._pagination import AsyncPage, AsyncPaginator, AsyncRecordsPage, SyncPage, SyncRecordsPage
 
 if TYPE_CHECKING:
@@ -23,6 +37,7 @@ if TYPE_CHECKING:
 __all__ = [
     "Scrapers", "AsyncScrapers", "Runs", "AsyncRuns", "UsageResource", "AsyncUsageResource",
     "Data", "AsyncData", "Postings", "AsyncPostings", "Companies", "AsyncCompanies",
+    "Webhooks", "AsyncWebhooks", "WebhookDeliveries", "AsyncWebhookDeliveries",
 ]
 
 Day = Union[date, str]
@@ -31,12 +46,50 @@ Moment = Union[datetime, date, str]
 """A time: a `datetime`, a `date` (its start, UTC) or an ISO 8601 string."""
 Provenance = Union[str, Iterable[str]]
 """`feed`, `page`, `board`, several of them, or `all`."""
+Events = Union[str, Iterable[str]]
+"""The run endings a webhook endpoint is told about: one or several of `enrichednow.WEBHOOK_EVENTS`."""
 
 
-def _run_body(input: Mapping[str, Any]) -> Dict[str, Any]:
+def _run_body(input: Mapping[str, Any], webhook_url: Optional[str] = None) -> Dict[str, Any]:
     if not isinstance(input, Mapping):
         raise TypeError("input must be a mapping: the scraper's input, as its input_schema describes it")
-    return {"input": dict(input)}
+    body: Dict[str, Any] = {"input": dict(input)}
+    if webhook_url is not None:
+        if not isinstance(webhook_url, str):
+            raise TypeError("webhook_url must be a string: the https URL to tell when the run ends")
+        body["webhook_url"] = webhook_url
+    return body
+
+
+def _events(events: Events) -> List[str]:
+    if isinstance(events, str):
+        return [events]
+    if isinstance(events, (bytes, Mapping)) or not isinstance(events, Iterable):
+        raise TypeError("events must be event names: one or several of enrichednow.WEBHOOK_EVENTS")
+    return [str(name) for name in events]
+
+
+def _endpoint_body(*, url: Optional[str], events: Optional[Events], description: Optional[str]) -> Dict[str, Any]:
+    """What is given of an endpoint's url, events and description, as the API takes it."""
+    body: Dict[str, Any] = {}
+    if url is not None:
+        if not isinstance(url, str):
+            raise TypeError("url must be a string: the https URL of the endpoint")
+        body["url"] = url
+    if events is not None:
+        body["events"] = _events(events)
+    if description is not None:
+        body["description"] = description
+    return body
+
+
+def _endpoint_change(*, url: Optional[str], events: Optional[Events], description: Optional[str], enabled: Optional[bool]) -> Dict[str, Any]:
+    body = _endpoint_body(url=url, events=events, description=description)
+    if enabled is not None:
+        body["enabled"] = bool(enabled)
+    if not body:
+        raise ValueError("give at least one of url, events, description, enabled")
+    return body
 
 
 def _scrapers(payload: Any) -> List[Scraper]:
@@ -67,20 +120,29 @@ class Scrapers:
         """`GET /v1/scrapers/{id}`: one scraper, with the JSON Schema of its input and of one record."""
         return ScraperDetails.from_dict(self._client._request("GET", f"/v1/scrapers/{path_segment(scraper_id)}"))
 
-    def run(self, scraper_id: str, input: Mapping[str, Any], *, wait: Optional[float] = None) -> Run:
+    def run(self, scraper_id: str, input: Mapping[str, Any], *, wait: Optional[float] = None,
+            webhook_url: Optional[str] = None, idempotency_key: Optional[str] = None) -> Run:
         """`POST /v1/scrapers/{id}/runs`: start a run.
 
         `wait` (0 to 60 seconds) asks the API to hold the request until the run ends or the time is up. The run that
         comes back may still be `queued` or `running`: follow it with `client.runs.wait(run.id)`, or use
         `client.scrape()` to do both.
 
-        Starting a run is not idempotent, so this request is not sent again after a timeout or a 5xx: the run may
-        exist. Look at `client.runs.list()` before starting it again.
+        `webhook_url` is an `https` URL that is sent a signed `POST` when this run ends, whichever way it ends,
+        beside the account's webhook endpoints. The account needs a signing secret for these first:
+        `client.webhooks.create_run_secret()`.
+
+        The request carries an `Idempotency-Key`, so it is safe to send again: after a timeout or a 5xx it is
+        retried with the same key, and the API answers with the run the first attempt started, never a second one.
+        A key is made for each call; pass `idempotency_key` (your own text, up to 255 characters, no spaces) to make
+        a call of yours repeatable across processes: for 24 hours the same key and the same request give the same run.
         """
         wait = validate_wait(wait)
+        key = idempotency_key if idempotency_key is not None else str(uuid.uuid4())
         return Run.from_dict(self._client._request(
-            "POST", f"/v1/scrapers/{path_segment(scraper_id)}/runs", params={"wait": wait}, json=_run_body(input),
-            idempotent=False, timeout=self._client._timeout_for(wait),
+            "POST", f"/v1/scrapers/{path_segment(scraper_id)}/runs", params={"wait": wait},
+            json=_run_body(input, webhook_url), headers={"Idempotency-Key": key},
+            timeout=self._client._timeout_for(wait),
         ))
 
 
@@ -264,6 +326,96 @@ class Companies:
         return fetch(cursor)
 
 
+class WebhookDeliveries:
+    def __init__(self, client: "EnrichedNow") -> None:
+        self._client = client
+
+    def list(self, *, endpoint_id: Optional[str] = None, run_id: Optional[str] = None, status: Optional[str] = None,
+             limit: Optional[int] = None, cursor: Optional[str] = None) -> SyncPage[WebhookDelivery]:
+        """`GET /v1/webhooks/deliveries`: the delivery log, newest first: one row for each event sent to each target,
+        with how its last attempt went. A delivery stays 30 days after it ended.
+
+        `endpoint_id`, `run_id` and `status` (`pending`, `succeeded`, `failed` or `cancelled`) narrow it. `limit` is
+        the size of a page (1 to 100, default 20).
+        """
+        def fetch(at: Optional[str]) -> SyncPage[WebhookDelivery]:
+            payload = self._client._request("GET", "/v1/webhooks/deliveries", params={
+                "endpoint_id": endpoint_id, "run_id": run_id, "status": status, "limit": limit, "cursor": at})
+            return build_page(SyncPage, payload, "deliveries", WebhookDelivery.from_dict, fetch)
+
+        return fetch(cursor)
+
+    def resend(self, delivery_id: str) -> WebhookDelivery:
+        """`POST /v1/webhooks/deliveries/{id}/resend`: send a delivery again. The answer is a new delivery of the same
+        event (the same `event_id` and body) to where the endpoint is now, with the full set of attempts.
+
+        Not for a delivery that is still `pending`, nor for an endpoint that is switched off or deleted. Like
+        starting a run, this request is not sent again after a timeout or a 5xx: the delivery may be queued.
+        """
+        return WebhookDelivery.from_dict(self._client._request(
+            "POST", f"/v1/webhooks/deliveries/{path_segment(delivery_id)}/resend", idempotent=False))
+
+
+class Webhooks:
+    """Webhooks: the endpoints that are told when a run ends, their signing secrets, and the delivery log."""
+
+    def __init__(self, client: "EnrichedNow") -> None:
+        self._client = client
+        self.deliveries = WebhookDeliveries(client)
+
+    def list(self) -> WebhookEndpointList:
+        """`GET /v1/webhooks`: the account's endpoints, and whether it has a secret for a run's own `webhook_url`.
+        A signing secret is never listed."""
+        return WebhookEndpointList.from_dict(self._client._request("GET", "/v1/webhooks"))
+
+    def create(self, url: str, events: Events, *, description: Optional[str] = None) -> WebhookEndpointWithSecret:
+        """`POST /v1/webhooks`: add an endpoint. Its signing secret is on the answer, and only there: store it.
+
+        `url` must be `https`. `events` are the run endings to be told about (`enrichednow.WEBHOOK_EVENTS`):
+        `run.succeeded`, `run.partial`, `run.failed`, `run.unsupported`, `run.cancelled`. `description` is a note
+        for yourself.
+
+        Like starting a run, this request is not sent again after a timeout or a 5xx: the endpoint may exist. Look
+        at `client.webhooks.list()` before adding it again.
+        """
+        return WebhookEndpointWithSecret.from_dict(self._client._request(
+            "POST", "/v1/webhooks", json=_endpoint_body(url=url, events=events, description=description), idempotent=False))
+
+    def get(self, endpoint_id: str) -> WebhookEndpoint:
+        """`GET /v1/webhooks/{id}`: one endpoint."""
+        return WebhookEndpoint.from_dict(self._client._request("GET", f"/v1/webhooks/{path_segment(endpoint_id)}"))
+
+    def update(self, endpoint_id: str, *, url: Optional[str] = None, events: Optional[Events] = None,
+               description: Optional[str] = None, enabled: Optional[bool] = None) -> WebhookEndpoint:
+        """`PATCH /v1/webhooks/{id}`: change an endpoint. Only what is given changes; give at least one.
+
+        `enabled=False` switches it off: nothing more is queued for it, and what was waiting is cancelled.
+        `enabled=True` switches it on again, also after it was switched off for failing.
+        """
+        body = _endpoint_change(url=url, events=events, description=description, enabled=enabled)
+        return WebhookEndpoint.from_dict(self._client._request("PATCH", f"/v1/webhooks/{path_segment(endpoint_id)}", json=body))
+
+    def delete(self, endpoint_id: str) -> None:
+        """`DELETE /v1/webhooks/{id}`: delete an endpoint. Nothing more is sent to it; what was waiting is cancelled.
+        Its past deliveries stay in the log."""
+        self._client._request("DELETE", f"/v1/webhooks/{path_segment(endpoint_id)}")
+
+    def rotate_secret(self, endpoint_id: str) -> WebhookEndpointWithSecret:
+        """`POST /v1/webhooks/{id}/rotate-secret`: replace an endpoint's signing secret. The new one is on the answer,
+        and only there: store it. The old one stops being used at once, for deliveries already queued too.
+
+        After a timeout or a 5xx this request is sent again like any other: the secret that comes back is the one
+        in use, whichever attempt made it.
+        """
+        return WebhookEndpointWithSecret.from_dict(self._client._request("POST", f"/v1/webhooks/{path_segment(endpoint_id)}/rotate-secret"))
+
+    def create_run_secret(self) -> WebhookSecret:
+        """`POST /v1/webhooks/run-secret`: make, or replace, the secret that signs what is sent to a run's own
+        `webhook_url`. It is the account's, and it is on the answer only: store it. An account needs one before a
+        run can name a `webhook_url`. Asking again replaces it."""
+        return WebhookSecret.from_dict(self._client._request("POST", "/v1/webhooks/run-secret"))
+
+
 class Data:
     """The datasets reads, under `/v1/data`."""
 
@@ -289,20 +441,29 @@ class AsyncScrapers:
         """`GET /v1/scrapers/{id}`: one scraper, with the JSON Schema of its input and of one record."""
         return ScraperDetails.from_dict(await self._client._request("GET", f"/v1/scrapers/{path_segment(scraper_id)}"))
 
-    async def run(self, scraper_id: str, input: Mapping[str, Any], *, wait: Optional[float] = None) -> Run:
+    async def run(self, scraper_id: str, input: Mapping[str, Any], *, wait: Optional[float] = None,
+                  webhook_url: Optional[str] = None, idempotency_key: Optional[str] = None) -> Run:
         """`POST /v1/scrapers/{id}/runs`: start a run.
 
         `wait` (0 to 60 seconds) asks the API to hold the request until the run ends or the time is up. The run that
         comes back may still be `queued` or `running`: follow it with `client.runs.wait(run.id)`, or use
         `client.scrape()` to do both.
 
-        Starting a run is not idempotent, so this request is not sent again after a timeout or a 5xx: the run may
-        exist. Look at `client.runs.list()` before starting it again.
+        `webhook_url` is an `https` URL that is sent a signed `POST` when this run ends, whichever way it ends,
+        beside the account's webhook endpoints. The account needs a signing secret for these first:
+        `client.webhooks.create_run_secret()`.
+
+        The request carries an `Idempotency-Key`, so it is safe to send again: after a timeout or a 5xx it is
+        retried with the same key, and the API answers with the run the first attempt started, never a second one.
+        A key is made for each call; pass `idempotency_key` (your own text, up to 255 characters, no spaces) to make
+        a call of yours repeatable across processes: for 24 hours the same key and the same request give the same run.
         """
         wait = validate_wait(wait)
+        key = idempotency_key if idempotency_key is not None else str(uuid.uuid4())
         return Run.from_dict(await self._client._request(
-            "POST", f"/v1/scrapers/{path_segment(scraper_id)}/runs", params={"wait": wait}, json=_run_body(input),
-            idempotent=False, timeout=self._client._timeout_for(wait),
+            "POST", f"/v1/scrapers/{path_segment(scraper_id)}/runs", params={"wait": wait},
+            json=_run_body(input, webhook_url), headers={"Idempotency-Key": key},
+            timeout=self._client._timeout_for(wait),
         ))
 
 
@@ -484,6 +645,96 @@ class AsyncCompanies:
             return build_page(AsyncPage, payload, "postings", Posting.from_dict, fetch)
 
         return AsyncPaginator(fetch, cursor)
+
+
+class AsyncWebhookDeliveries:
+    def __init__(self, client: "AsyncEnrichedNow") -> None:
+        self._client = client
+
+    def list(self, *, endpoint_id: Optional[str] = None, run_id: Optional[str] = None, status: Optional[str] = None,
+             limit: Optional[int] = None, cursor: Optional[str] = None) -> AsyncPaginator[WebhookDelivery, AsyncPage[WebhookDelivery]]:
+        """`GET /v1/webhooks/deliveries`: the delivery log, newest first: one row for each event sent to each target,
+        with how its last attempt went. A delivery stays 30 days after it ended.
+
+        `endpoint_id`, `run_id` and `status` (`pending`, `succeeded`, `failed` or `cancelled`) narrow it. `limit` is
+        the size of a page (1 to 100, default 20). Await it for a page, or `async for` over every delivery.
+        """
+        async def fetch(at: Optional[str]) -> AsyncPage[WebhookDelivery]:
+            payload = await self._client._request("GET", "/v1/webhooks/deliveries", params={
+                "endpoint_id": endpoint_id, "run_id": run_id, "status": status, "limit": limit, "cursor": at})
+            return build_page(AsyncPage, payload, "deliveries", WebhookDelivery.from_dict, fetch)
+
+        return AsyncPaginator(fetch, cursor)
+
+    async def resend(self, delivery_id: str) -> WebhookDelivery:
+        """`POST /v1/webhooks/deliveries/{id}/resend`: send a delivery again. The answer is a new delivery of the same
+        event (the same `event_id` and body) to where the endpoint is now, with the full set of attempts.
+
+        Not for a delivery that is still `pending`, nor for an endpoint that is switched off or deleted. Like
+        starting a run, this request is not sent again after a timeout or a 5xx: the delivery may be queued.
+        """
+        return WebhookDelivery.from_dict(await self._client._request(
+            "POST", f"/v1/webhooks/deliveries/{path_segment(delivery_id)}/resend", idempotent=False))
+
+
+class AsyncWebhooks:
+    """Webhooks: the endpoints that are told when a run ends, their signing secrets, and the delivery log."""
+
+    def __init__(self, client: "AsyncEnrichedNow") -> None:
+        self._client = client
+        self.deliveries = AsyncWebhookDeliveries(client)
+
+    async def list(self) -> WebhookEndpointList:
+        """`GET /v1/webhooks`: the account's endpoints, and whether it has a secret for a run's own `webhook_url`.
+        A signing secret is never listed."""
+        return WebhookEndpointList.from_dict(await self._client._request("GET", "/v1/webhooks"))
+
+    async def create(self, url: str, events: Events, *, description: Optional[str] = None) -> WebhookEndpointWithSecret:
+        """`POST /v1/webhooks`: add an endpoint. Its signing secret is on the answer, and only there: store it.
+
+        `url` must be `https`. `events` are the run endings to be told about (`enrichednow.WEBHOOK_EVENTS`):
+        `run.succeeded`, `run.partial`, `run.failed`, `run.unsupported`, `run.cancelled`. `description` is a note
+        for yourself.
+
+        Like starting a run, this request is not sent again after a timeout or a 5xx: the endpoint may exist. Look
+        at `client.webhooks.list()` before adding it again.
+        """
+        return WebhookEndpointWithSecret.from_dict(await self._client._request(
+            "POST", "/v1/webhooks", json=_endpoint_body(url=url, events=events, description=description), idempotent=False))
+
+    async def get(self, endpoint_id: str) -> WebhookEndpoint:
+        """`GET /v1/webhooks/{id}`: one endpoint."""
+        return WebhookEndpoint.from_dict(await self._client._request("GET", f"/v1/webhooks/{path_segment(endpoint_id)}"))
+
+    async def update(self, endpoint_id: str, *, url: Optional[str] = None, events: Optional[Events] = None,
+               description: Optional[str] = None, enabled: Optional[bool] = None) -> WebhookEndpoint:
+        """`PATCH /v1/webhooks/{id}`: change an endpoint. Only what is given changes; give at least one.
+
+        `enabled=False` switches it off: nothing more is queued for it, and what was waiting is cancelled.
+        `enabled=True` switches it on again, also after it was switched off for failing.
+        """
+        body = _endpoint_change(url=url, events=events, description=description, enabled=enabled)
+        return WebhookEndpoint.from_dict(await self._client._request("PATCH", f"/v1/webhooks/{path_segment(endpoint_id)}", json=body))
+
+    async def delete(self, endpoint_id: str) -> None:
+        """`DELETE /v1/webhooks/{id}`: delete an endpoint. Nothing more is sent to it; what was waiting is cancelled.
+        Its past deliveries stay in the log."""
+        await self._client._request("DELETE", f"/v1/webhooks/{path_segment(endpoint_id)}")
+
+    async def rotate_secret(self, endpoint_id: str) -> WebhookEndpointWithSecret:
+        """`POST /v1/webhooks/{id}/rotate-secret`: replace an endpoint's signing secret. The new one is on the answer,
+        and only there: store it. The old one stops being used at once, for deliveries already queued too.
+
+        After a timeout or a 5xx this request is sent again like any other: the secret that comes back is the one
+        in use, whichever attempt made it.
+        """
+        return WebhookEndpointWithSecret.from_dict(await self._client._request("POST", f"/v1/webhooks/{path_segment(endpoint_id)}/rotate-secret"))
+
+    async def create_run_secret(self) -> WebhookSecret:
+        """`POST /v1/webhooks/run-secret`: make, or replace, the secret that signs what is sent to a run's own
+        `webhook_url`. It is the account's, and it is on the answer only: store it. An account needs one before a
+        run can name a `webhook_url`. Asking again replaces it."""
+        return WebhookSecret.from_dict(await self._client._request("POST", "/v1/webhooks/run-secret"))
 
 
 class AsyncData:

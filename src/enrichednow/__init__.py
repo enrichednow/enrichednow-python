@@ -16,6 +16,7 @@ from ._exceptions import (
     EnrichedNowError,
     MissingAPIKeyError,
     NotFoundError,
+    ConflictError,
     PermissionDeniedError,
     QuotaExceededError,
     RateLimitError,
@@ -23,6 +24,7 @@ from ._exceptions import (
     ServerError,
     ValidationError,
     WaitTimeoutError,
+    WebhookVerificationError,
 )
 from ._models import (
     Change,
@@ -47,11 +49,20 @@ from ._models import (
     ScraperDetails,
     Sightings,
     Source,
+    WEBHOOK_EVENTS,
     Usage,
     UsageRow,
+    WebhookDelivery,
+    WebhookEndpoint,
+    WebhookEndpointList,
+    WebhookEndpointWithSecret,
+    WebhookEvent,
+    WebhookEventName,
+    WebhookSecret,
 )
 from ._pagination import AsyncPage, AsyncPaginator, AsyncRecordsPage, SyncPage, SyncRecordsPage
 from ._version import __version__
+from ._webhooks import parse_webhook, verify_webhook
 
 __all__ = [
     "__version__",
@@ -69,12 +80,17 @@ __all__ = [
     "AuthenticationError",
     "PermissionDeniedError",
     "NotFoundError",
+    "ConflictError",
     "RateLimitError",
     "ValidationError",
     "QuotaExceededError",
     "ServerError",
     "RunFailedError",
     "WaitTimeoutError",
+    "WebhookVerificationError",
+    # webhooks: verifying what arrives
+    "verify_webhook",
+    "parse_webhook",
     # pagination
     "SyncPage",
     "AsyncPage",
@@ -106,4 +122,12 @@ __all__ = [
     "Sightings",
     "LastRead",
     "PostingCounts",
+    "WEBHOOK_EVENTS",
+    "WebhookEventName",
+    "WebhookEndpoint",
+    "WebhookEndpointWithSecret",
+    "WebhookEndpointList",
+    "WebhookSecret",
+    "WebhookDelivery",
+    "WebhookEvent",
 ]

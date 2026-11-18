@@ -136,8 +136,8 @@ def test_errors_and_retries(api: FakeAPI) -> None:
     api.requests.clear()
     api.answers[:] = [ok(error_json("internal"), status=500)]
     with pytest.raises(ServerError):
-        run(lambda c: c.scrapers.run("ats.board", {"board_url": "x"}), api)
-    assert len(api.requests) == 1                          # starting a run is not sent again after a 5xx
+        run(lambda c: c.webhooks.create("https://example.com/hook", events=["run.succeeded"]), api)
+    assert len(api.requests) == 1                          # adding an endpoint is not sent again after a 5xx
 
     api.requests.clear()
     api.answers[:] = [ok(error_json("rate_limited"), status=429, headers={"Retry-After": "2"}), ok(run_json())]

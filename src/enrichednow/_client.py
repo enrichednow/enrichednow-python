@@ -30,10 +30,12 @@ from ._resources import (
     AsyncRuns,
     AsyncScrapers,
     AsyncUsageResource,
+    AsyncWebhooks,
     Data,
     Runs,
     Scrapers,
     UsageResource,
+    Webhooks,
 )
 
 __all__ = ["EnrichedNow", "AsyncEnrichedNow", "ScrapeResult", "AsyncScrapeResult"]
@@ -117,6 +119,7 @@ class EnrichedNow(BaseClient):
         self.runs = Runs(self)
         self.usage = UsageResource(self)
         self.data = Data(self)
+        self.webhooks = Webhooks(self)
 
     # --- transport ------------------------------------------------------------------------------------------------
 
@@ -129,8 +132,9 @@ class EnrichedNow(BaseClient):
         json: Any = None,
         idempotent: bool = True,
         timeout: Any = USE_CLIENT_TIMEOUT,
+        headers: Optional[Mapping[str, str]] = None,
     ) -> Any:
-        headers = self._headers
+        headers = {**self._headers, **headers} if headers else self._headers
         attempt = 0
         while True:
             error: EnrichedNowError
@@ -148,7 +152,7 @@ class EnrichedNow(BaseClient):
                 error.__cause__ = exc
             else:
                 if response.is_success:
-                    return parse_json(response)
+                    return None if response.status_code == 204 else parse_json(response)
                 error = error_from_response(response)
             delay = self._retry_delay(error, attempt=attempt, idempotent=idempotent)
             if delay is None:
@@ -181,15 +185,21 @@ class EnrichedNow(BaseClient):
         timeout: Optional[float] = DEFAULT_RUN_TIMEOUT,
         poll_interval: float = DEFAULT_POLL_INTERVAL,
         raise_on_failure: bool = True,
+        webhook_url: Optional[str] = None,
+        idempotency_key: Optional[str] = None,
     ) -> ScrapeResult:
         """Start a run, wait for it to end, and return it with its records.
 
         Raises `RunFailedError` when the run ends `failed`, `unsupported` or `cancelled` (pass
         `raise_on_failure=False` to get the result instead), and `WaitTimeoutError` when it has not ended after
         `timeout` seconds (`None`: wait as long as it takes). A run that ends `partial` is returned: it has records.
+
+        `webhook_url` is an `https` URL that is also told when the run ends: see `client.scrapers.run`.
+        `idempotency_key` names this call so that it can be repeated without a second run: see `client.scrapers.run`.
         """
         started = time.monotonic()
-        run = self.scrapers.run(scraper_id, input, wait=_server_wait(timeout))
+        run = self.scrapers.run(scraper_id, input, wait=_server_wait(timeout), webhook_url=webhook_url,
+                                idempotency_key=idempotency_key)
         if run.is_active:
             remaining = None if timeout is None else max(0.0, timeout - (time.monotonic() - started))
             run = self.runs.wait(run.id, timeout=remaining, poll_interval=poll_interval)
@@ -224,6 +234,7 @@ class AsyncEnrichedNow(BaseClient):
         self.runs = AsyncRuns(self)
         self.usage = AsyncUsageResource(self)
         self.data = AsyncData(self)
+        self.webhooks = AsyncWebhooks(self)
 
     async def _request(
         self,
@@ -234,8 +245,9 @@ class AsyncEnrichedNow(BaseClient):
         json: Any = None,
         idempotent: bool = True,
         timeout: Any = USE_CLIENT_TIMEOUT,
+        headers: Optional[Mapping[str, str]] = None,
     ) -> Any:
-        headers = self._headers
+        headers = {**self._headers, **headers} if headers else self._headers
         attempt = 0
         while True:
             error: EnrichedNowError
@@ -253,7 +265,7 @@ class AsyncEnrichedNow(BaseClient):
                 error.__cause__ = exc
             else:
                 if response.is_success:
-                    return parse_json(response)
+                    return None if response.status_code == 204 else parse_json(response)
                 error = error_from_response(response)
             delay = self._retry_delay(error, attempt=attempt, idempotent=idempotent)
             if delay is None:
@@ -284,15 +296,21 @@ class AsyncEnrichedNow(BaseClient):
         timeout: Optional[float] = DEFAULT_RUN_TIMEOUT,
         poll_interval: float = DEFAULT_POLL_INTERVAL,
         raise_on_failure: bool = True,
+        webhook_url: Optional[str] = None,
+        idempotency_key: Optional[str] = None,
     ) -> AsyncScrapeResult:
         """Start a run, wait for it to end, and return it with its records.
 
         Raises `RunFailedError` when the run ends `failed`, `unsupported` or `cancelled` (pass
         `raise_on_failure=False` to get the result instead), and `WaitTimeoutError` when it has not ended after
         `timeout` seconds (`None`: wait as long as it takes). A run that ends `partial` is returned: it has records.
+
+        `webhook_url` is an `https` URL that is also told when the run ends: see `client.scrapers.run`.
+        `idempotency_key` names this call so that it can be repeated without a second run: see `client.scrapers.run`.
         """
         started = time.monotonic()
-        run = await self.scrapers.run(scraper_id, input, wait=_server_wait(timeout))
+        run = await self.scrapers.run(scraper_id, input, wait=_server_wait(timeout), webhook_url=webhook_url,
+                                idempotency_key=idempotency_key)
         if run.is_active:
             remaining = None if timeout is None else max(0.0, timeout - (time.monotonic() - started))
             run = await self.runs.wait(run.id, timeout=remaining, poll_interval=poll_interval)

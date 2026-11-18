@@ -158,6 +158,82 @@ except RunFailedError as error:
     print(error.status, error.reason, error.run.id)
 ```
 
+## Webhooks
+
+Instead of polling, have a URL of yours told when a run ends. An endpoint is an `https` URL and the events it
+wants: `run.succeeded` (the status `ok`), `run.partial`, `run.failed`, `run.unsupported`, `run.cancelled`.
+
+```python
+endpoint = client.webhooks.create(
+    "https://example.com/hooks/enrichednow",
+    ["run.succeeded", "run.partial", "run.failed"],
+    description="production",
+)
+print(endpoint.id, endpoint.secret)             # the signing secret (whsec_...) is shown only here: store it
+```
+
+```python
+client.webhooks.list()                          # .endpoints (iterable) and .run_secret_set
+client.webhooks.get("whk_...")
+client.webhooks.update("whk_...", enabled=False)                # any of url, events, description, enabled
+client.webhooks.rotate_secret("whk_...").secret                 # a new secret; the old one stops at once
+client.webhooks.delete("whk_...")
+
+for delivery in client.webhooks.deliveries.list(status="failed"):   # the delivery log, newest first
+    print(delivery.id, delivery.event, delivery.attempts, delivery.error)
+client.webhooks.deliveries.resend("whd_...")                    # send one again
+```
+
+### Verify a request
+
+Anybody who learns your URL can post to it, so check the signature before you act on a request.
+`verify_webhook` needs no client and makes no request. Give it the body exactly as it arrived, as raw bytes,
+before any JSON parsing:
+
+```python
+import os
+
+from flask import Flask, request
+
+from enrichednow import WebhookVerificationError, parse_webhook
+
+app = Flask(__name__)
+SECRET = os.environ["ENRICHEDNOW_WEBHOOK_SECRET"]
+
+
+@app.post("/hooks/enrichednow")
+def run_ended():
+    try:
+        event = parse_webhook(
+            SECRET,
+            request.headers.get("X-Webhook-Timestamp", ""),
+            request.get_data(),                                 # the raw bytes
+            request.headers.get("X-Webhook-Signature", ""),
+        )
+    except WebhookVerificationError:
+        return "", 400
+    print(event.id, event.type, event.run.id, event.run.record_count)
+    return "", 204
+```
+
+`parse_webhook` returns a `WebhookEvent` (`id`, `type`, `created_at`, `run`) and raises
+`WebhookVerificationError` for a request that does not verify. `verify_webhook(secret, timestamp, body, signature)`
+takes the same arguments and returns `True` or `False`. Both compare in constant time and refuse a timestamp more
+than 5 minutes from now (`tolerance_s=300`).
+
+An event can arrive more than once, and is sent again when you resend a delivery; `event.id` is the same every
+time, so use it to ignore a repeat. Answer with a 2xx quickly and do the work afterwards.
+
+### A webhook for one run
+
+```python
+client.webhooks.create_run_secret().secret      # once for the account; shown only here
+run = client.scrapers.run("careers.company", {"domain": "acme.com"}, webhook_url="https://example.com/hooks/run-done")
+```
+
+`webhook_url` is told when that run ends, whichever way it ends, beside your endpoints. `client.scrape()` takes it
+too. What is sent there is signed with the account's run secret; verify it the same way.
+
 ## Usage
 
 ```python
@@ -264,7 +340,8 @@ EnrichedNowError
 │   │   └── QuotaExceededError      402 quota_exceeded
 │   └── ServerError                 5xx internal, data_unavailable
 ├── RunFailedError                  a run ended failed, unsupported or cancelled
-└── WaitTimeoutError                a run did not end within the time given
+├── WaitTimeoutError                a run did not end within the time given
+└── WebhookVerificationError        a webhook request did not verify (parse_webhook)
 ```
 
 An `APIError` carries what the API said:
@@ -313,10 +390,14 @@ exponential backoff and jitter: about half a second, then a second, then two, up
 A `Retry-After` longer than 60 seconds is not waited for: the `RateLimitError` is raised, with the wait on
 `.retry_after`.
 
-**Starting a run is the exception.** It is not idempotent: a repeated `POST` starts, and charges for, a second
-run. So `scrapers.run()` and `scrape()` send it again only when no run can exist: the connection was never made,
-or the answer was `429`. After a timeout or a `5xx` the error is raised instead. Look at `client.runs.list()` before
-starting the run again; the first one may well exist.
+**Starting a run is safe to repeat too.** `scrapers.run()` and `scrape()` send an `Idempotency-Key` with the
+request, a new one for each call, so a retry after a timeout or a `5xx` gets the run the first attempt started and
+never a second one. To make a call of your own repeatable (a job that may be restarted, say), pass your own key:
+`client.scrape("ats.board", input, idempotency_key="import-2026-11-19-acme")`. For 24 hours the same key with the
+same request gives the same run; the same key with a different request raises `ConflictError`.
+
+`webhooks.create()` and `webhooks.deliveries.resend()` are the exception: they are sent again only when the API cannot have acted (the connection was never made, or the answer was `429`), because a repeat would add a second endpoint, or
+queue the delivery twice.
 
 ```python
 client = EnrichedNow(max_retries=0)   # never retry

@@ -19,6 +19,7 @@ from ._exceptions import (
     EnrichedNowError,
     MissingAPIKeyError,
     NotFoundError,
+    ConflictError,
     PermissionDeniedError,
     QuotaExceededError,
     RateLimitError,
@@ -166,6 +167,8 @@ def error_from_response(response: httpx.Response) -> APIError:
         return PermissionDeniedError(text, **common)
     if status == 404:
         return NotFoundError(text, **common)
+    if status == 409:
+        return ConflictError(text, **common)
     if status == 429:
         return RateLimitError(text, retry_after=_retry_after(response), **common)
     if status == 402:

@@ -9,7 +9,7 @@ import dataclasses
 import re
 from dataclasses import dataclass, field
 from datetime import date, datetime
-from typing import Any, Callable, Dict, List, Mapping, Optional, Type, TypeVar
+from typing import Any, Callable, Dict, Iterator, List, Literal, Mapping, Optional, Tuple, Type, TypeVar, get_args
 
 __all__ = [
     "Model",
@@ -36,6 +36,14 @@ __all__ = [
     "LastRead",
     "PostingCounts",
     "Company",
+    "WebhookEventName",
+    "WEBHOOK_EVENTS",
+    "WebhookEndpoint",
+    "WebhookEndpointWithSecret",
+    "WebhookEndpointList",
+    "WebhookSecret",
+    "WebhookDelivery",
+    "WebhookEvent",
     "ACTIVE_STATUSES",
     "TERMINAL_STATUSES",
     "FAILURE_STATUSES",
@@ -83,10 +91,11 @@ def _list_of(convert: Callable[[Any], Any]) -> Callable[[Any], List[Any]]:
     return run
 
 
-def _f(convert: Optional[Callable[[Any], Any]] = None, *, key: Optional[str] = None, empty: Optional[Callable[[], Any]] = None) -> Any:
+def _f(convert: Optional[Callable[[Any], Any]] = None, *, key: Optional[str] = None, empty: Optional[Callable[[], Any]] = None,
+       repr: bool = True) -> Any:
     """A model field: `convert` builds it from JSON, `key` is its JSON name when that differs, `empty` is its value
-    when the API left it out (default `None`)."""
-    return field(metadata={"convert": convert, "key": key, "empty": empty})
+    when the API left it out (default `None`), `repr=False` keeps it out of the model's `repr` (a secret)."""
+    return field(repr=repr, metadata={"convert": convert, "key": key, "empty": empty})
 
 
 @dataclass(frozen=True)
@@ -378,3 +387,120 @@ class Company(Model):
     last_seen_at: Optional[datetime] = _f(_datetime)
     last_read: LastRead = _f(LastRead.from_dict, empty=lambda: LastRead.from_dict({}))
     postings: PostingCounts = _f(PostingCounts.from_dict, empty=lambda: PostingCounts.from_dict({}))
+
+
+# --- webhooks ---------------------------------------------------------------------------------------------------------
+
+WebhookEventName = Literal["run.succeeded", "run.partial", "run.failed", "run.unsupported", "run.cancelled"]
+"""How a run ended, as a webhook names it. `run.succeeded` is the status `ok`."""
+WEBHOOK_EVENTS: Tuple[str, ...] = get_args(WebhookEventName)
+"""Every event an endpoint can ask for."""
+
+
+@dataclass(frozen=True)
+class WebhookEndpoint(Model):
+    """A URL of yours that is sent a signed `POST` when a run ends with one of the events it asked for."""
+
+    id: str = _f()
+    url: str = _f()
+    description: str = _f()
+    """A note for yourself."""
+    events: List[str] = _f(list, empty=list)
+    """The run endings it is told about: see `WEBHOOK_EVENTS`."""
+    enabled: bool = _f()
+    """False: nothing is sent to it."""
+    disabled_reason: Optional[str] = _f()
+    """Why it was switched off for you (its deliveries failed for a day). `None` when it is on, and when you
+    switched it off yourself."""
+    disabled_at: Optional[datetime] = _f(_datetime)
+    last_success_at: Optional[datetime] = _f(_datetime)
+    """When a delivery to it last succeeded."""
+    last_failure_at: Optional[datetime] = _f(_datetime)
+    """When an attempt to deliver to it last failed."""
+    created_at: Optional[datetime] = _f(_datetime)
+
+
+@dataclass(frozen=True)
+class WebhookEndpointWithSecret(WebhookEndpoint):
+    """An endpoint with its signing secret: what creating one, or replacing its secret, returns. The secret is shown
+    only then, so store it. It is left out of the `repr`."""
+
+    secret: str = _f(repr=False)
+    """The signing secret (`whsec_…`)."""
+
+
+@dataclass(frozen=True)
+class WebhookEndpointList(Model):
+    """The account's endpoints. Iterating it yields the endpoints."""
+
+    endpoints: List[WebhookEndpoint] = _f(_list_of(WebhookEndpoint.from_dict), empty=list)
+    run_secret_set: bool = _f(bool, empty=bool)
+    """Whether the account has a signing secret for a run's own `webhook_url`."""
+
+    def __iter__(self) -> Iterator[WebhookEndpoint]:
+        return iter(self.endpoints)
+
+    def __len__(self) -> int:
+        return len(self.endpoints)
+
+
+@dataclass(frozen=True)
+class WebhookSecret(Model):
+    """A signing secret, shown only once, so store it. It is left out of the `repr`."""
+
+    secret: str = _f(repr=False)
+    """The signing secret (`whsec_…`)."""
+
+
+@dataclass(frozen=True)
+class WebhookDelivery(Model):
+    """One event sent to one target, with how its last attempt went."""
+
+    id: str = _f()
+    endpoint_id: Optional[str] = _f()
+    """`None` for a delivery to a run's own `webhook_url`."""
+    run_id: str = _f()
+    event_id: str = _f()
+    """The `id` in the event's body and the `X-Webhook-Id` header: the same on every attempt, and when the delivery
+    is sent again."""
+    event: str = _f()
+    """One of `WEBHOOK_EVENTS`."""
+    url: str = _f()
+    status: str = _f()
+    """`pending` (waiting for its next attempt), `succeeded` (answered 2xx), `failed` (out of attempts) or
+    `cancelled` (its endpoint was switched off or deleted first)."""
+    attempts: int = _f()
+    """Attempts made so far."""
+    max_attempts: int = _f()
+    next_attempt_at: Optional[datetime] = _f(_datetime)
+    """When it is tried next; `None` once it has ended."""
+    response_status: Optional[int] = _f()
+    """The HTTP status of the last attempt's answer, when there was one."""
+    error: Optional[str] = _f()
+    """A stable code for why the last attempt failed (`http_error`, `timeout`, `connection_failed`, …) or why the
+    delivery was cancelled (`endpoint_disabled`, `endpoint_deleted`). `None` after a success."""
+    duration_ms: Optional[int] = _f()
+    """How long the last attempt took."""
+    last_attempt_at: Optional[datetime] = _f(_datetime)
+    created_at: Optional[datetime] = _f(_datetime)
+    finished_at: Optional[datetime] = _f(_datetime)
+    resend_of: Optional[str] = _f()
+    """The delivery this one was sent again from."""
+
+
+@dataclass(frozen=True)
+class WebhookEvent(Model):
+    """What a webhook request carries: `parse_webhook` builds it from a request that verified."""
+
+    id: str = _f()
+    """`evt_…`: the same on every attempt and when the delivery is sent again, so use it to ignore a repeat."""
+    type: str = _f()
+    """One of `WEBHOOK_EVENTS`."""
+    created_at: Optional[datetime] = _f(_datetime)
+    data: Dict[str, Any] = _f(_dict, empty=dict)
+
+    @property
+    def run(self) -> Optional[Run]:
+        """The run that ended, as `client.runs.get` would return it."""
+        run = self.data.get("run")
+        return Run.from_dict(run) if isinstance(run, Mapping) else None

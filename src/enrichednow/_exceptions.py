@@ -8,12 +8,14 @@
     │   ├── AuthenticationError       401
     │   │   └── PermissionDeniedError 403
     │   ├── NotFoundError             404
+    │   ├── ConflictError             409
     │   ├── RateLimitError            429
     │   ├── ValidationError           any other 4xx (422 `invalid_input`)
     │   │   └── QuotaExceededError    402
     │   └── ServerError               5xx
     ├── RunFailedError                a run ended failed, unsupported or cancelled
-    └── WaitTimeoutError              a run did not end within the time given
+    ├── WaitTimeoutError              a run did not end within the time given
+    └── WebhookVerificationError      a webhook request is not one this API signed
 """
 from __future__ import annotations
 
@@ -33,12 +35,14 @@ __all__ = [
     "AuthenticationError",
     "PermissionDeniedError",
     "NotFoundError",
+    "ConflictError",
     "RateLimitError",
     "ValidationError",
     "QuotaExceededError",
     "ServerError",
     "RunFailedError",
     "WaitTimeoutError",
+    "WebhookVerificationError",
 ]
 
 
@@ -121,6 +125,11 @@ class NotFoundError(APIError):
     """404: there is no such scraper, run, posting or company."""
 
 
+class ConflictError(APIError):
+    """409 `idempotency_conflict`: the idempotency key was already used, in the last 24 hours, for a different
+    request. `details["run_id"]` is the run that key started."""
+
+
 class RateLimitError(APIError):
     """429: `too_many_runs` (wait for one of your runs to end) or `rate_limited` (wait `retry_after` seconds)."""
 
@@ -194,3 +203,12 @@ class WaitTimeoutError(EnrichedNowError):
         self.timeout = timeout
         self.message = f"Run {run.id} was still {run.status} after {timeout:g} seconds."
         super().__init__(self.message)
+
+
+class WebhookVerificationError(EnrichedNowError):
+    """A webhook request did not verify: its signature is not this secret's over this timestamp and body, its
+    timestamp is too far from now, or what was signed is not an event. Answer `400` and do nothing with it."""
+
+    def __init__(self, message: str = "The webhook request did not verify.") -> None:
+        self.message = message
+        super().__init__(message)

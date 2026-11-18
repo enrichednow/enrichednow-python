@@ -15,6 +15,7 @@ from enrichednow import (
     EnrichedNowError,
     MissingAPIKeyError,
     NotFoundError,
+    ConflictError,
     PermissionDeniedError,
     QuotaExceededError,
     RateLimitError,
@@ -58,7 +59,7 @@ def test_base_url_is_configurable_and_the_key_is_not_in_the_repr(api: FakeAPI) -
 
 
 def test_version() -> None:
-    assert enrichednow.__version__ == "0.1.0"
+    assert enrichednow.__version__ == "0.1.1"
 
 
 # --- scrapers ---------------------------------------------------------------------------------------------------------
@@ -395,10 +396,35 @@ def test_connection_errors_are_typed_when_retries_run_out(api: FakeAPI) -> None:
 
 
 @pytest.mark.parametrize("failure", [ok(error_json("internal"), status=500), httpx.ReadTimeout("slow"), httpx.ReadError("cut"), httpx.RemoteProtocolError("cut")])
-def test_starting_a_run_is_not_sent_again_when_it_may_have_been_created(api: FakeAPI, failure: object) -> None:
+def test_starting_a_run_is_sent_again_with_the_same_idempotency_key(api: FakeAPI, failure: object) -> None:
+    api.reply(failure, ok(run_json("queued"), status=202))  # type: ignore[arg-type]
+    assert api.client().scrapers.run("ats.board", {"board_url": "x"}).status == "queued"
+    keys = [request.headers["Idempotency-Key"] for request in api.requests]
+    assert len(keys) == 2 and keys[0] == keys[1] and len(keys[0]) == 36           # one key for the call, a UUID
+
+
+def test_each_call_has_its_own_key_unless_one_is_given(api: FakeAPI) -> None:
+    api.reply(ok(run_json("queued"), status=202), ok(run_json("queued"), status=202), ok(run_json()))
+    client = api.client()
+    client.scrapers.run("ats.board", {"board_url": "x"})
+    client.scrapers.run("ats.board", {"board_url": "x"})
+    client.scrape("ats.board", {"board_url": "x"}, idempotency_key="import-acme")
+    keys = [request.headers["Idempotency-Key"] for request in api.requests]
+    assert keys[0] != keys[1] and keys[2] == "import-acme"
+
+
+def test_a_key_used_for_another_request_is_a_conflict(api: FakeAPI) -> None:
+    api.reply(ok(error_json("idempotency_conflict", "Used.", {"run_id": "run_1"}), status=409))
+    with pytest.raises(ConflictError) as caught:
+        api.client().scrapers.run("ats.board", {"board_url": "y"}, idempotency_key="import-acme")
+    assert caught.value.details == {"run_id": "run_1"} and len(api.requests) == 1
+
+
+@pytest.mark.parametrize("failure", [ok(error_json("internal"), status=500), httpx.ReadTimeout("slow")])
+def test_adding_an_endpoint_is_not_sent_again_when_it_may_have_been_made(api: FakeAPI, failure: object) -> None:
     api.reply(failure)  # type: ignore[arg-type]
     with pytest.raises((ServerError, APIConnectionError)):
-        api.client().scrapers.run("ats.board", {"board_url": "x"})
+        api.client().webhooks.create("https://example.com/hook", events=["run.succeeded"])
     assert len(api.requests) == 1 and api.slept == []
 
 
