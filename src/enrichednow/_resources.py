@@ -4,7 +4,7 @@ from __future__ import annotations
 import time
 import uuid
 from datetime import date, datetime
-from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Mapping, Optional, Union
+from typing import TYPE_CHECKING, Any, AsyncIterator, Dict, Iterable, Iterator, List, Mapping, Optional, Union
 
 from ._base import (
     DEFAULT_POLL_INTERVAL,
@@ -12,16 +12,22 @@ from ._base import (
     build_page,
     path_segment,
     posting_params,
+    records_export,
+    validate_format,
     validate_wait,
+    without_header,
 )
 from ._exceptions import WaitTimeoutError
 from ._models import (
     Company,
     Posting,
     PostingDetail,
+    RecordFormat,
+    RecordsExport,
     Run,
     Scraper,
     ScraperDetails,
+    Standing,
     Usage,
     WebhookDelivery,
     WebhookEndpoint,
@@ -97,10 +103,31 @@ def _scrapers(payload: Any) -> List[Scraper]:
     return [Scraper.from_dict(row) for row in rows] if isinstance(rows, list) else []
 
 
+EXPORT_PAGE = 1000          # records a page when a whole run is exported: the API's largest page
+
+
+def _runs_params(scraper_id: Optional[str], status: Optional[str], api_key_id: Optional[str], from_: Optional[Moment],
+                 to: Optional[Moment], limit: Optional[int], cursor: Optional[str]) -> Dict[str, Any]:
+    return {"scraper_id": scraper_id, "status": status, "api_key_id": api_key_id, "from": from_, "to": to, "limit": limit, "cursor": cursor}
+
+
+def _export_params(format: str, limit: Optional[int], cursor: Optional[str]) -> Dict[str, Any]:
+    return {"format": validate_format(format), "limit": limit, "cursor": cursor}
+
+
+_ACCEPT = {"csv": "text/csv", "ndjson": "application/x-ndjson"}
+_FILE_ACCEPT = {"Accept": "*/*"}
+
+
 def _poll_interval(value: float) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
         raise ValueError("poll_interval must be a number of seconds, 0 or more")
     return float(value)
+
+
+_NO_STANDING = Standing(units_limit=None, units_used=None, units_remaining=None, units_topup=None, units_reset=None,
+                        runs_limit=None, runs_remaining=None)
+"""What `usage.standing()` returns if an answer carried no standing (a server that does not send it)."""
 
 
 # ======================================================================================================================
@@ -124,7 +151,7 @@ class Scrapers:
             webhook_url: Optional[str] = None, idempotency_key: Optional[str] = None) -> Run:
         """`POST /v1/scrapers/{id}/runs`: start a run.
 
-        `wait` (0 to 60 seconds) asks the API to hold the request until the run ends or the time is up. The run that
+        `wait` (0 to 300 seconds) asks the API to hold the request until the run ends or the time is up. The run that
         comes back may still be `queued` or `running`: follow it with `client.runs.wait(run.id)`, or use
         `client.scrape()` to do both.
 
@@ -150,15 +177,22 @@ class Runs:
     def __init__(self, client: "EnrichedNow") -> None:
         self._client = client
 
-    def get(self, run_id: str) -> Run:
-        """`GET /v1/runs/{id}`: the run as it is now."""
-        return Run.from_dict(self._client._request("GET", f"/v1/runs/{path_segment(run_id)}"))
+    def get(self, run_id: str, *, wait: Optional[float] = None) -> Run:
+        """`GET /v1/runs/{id}`: the run as it is now. `wait` (0 to 300 seconds) holds the request until the run has
+        ended or the time is up."""
+        wait = validate_wait(wait)
+        return Run.from_dict(self._client._request("GET", f"/v1/runs/{path_segment(run_id)}", params={"wait": wait},
+                                                   timeout=self._client._timeout_for(wait)))
 
-    def list(self, *, scraper_id: Optional[str] = None, status: Optional[str] = None, limit: Optional[int] = None,
+    def list(self, *, scraper_id: Optional[str] = None, status: Optional[str] = None, api_key_id: Optional[str] = None,
+             from_: Optional[Moment] = None, to: Optional[Moment] = None, limit: Optional[int] = None,
              cursor: Optional[str] = None) -> SyncPage[Run]:
-        """`GET /v1/runs`: the account's runs, newest first. `limit` is the size of a page (1 to 100, default 20)."""
+        """`GET /v1/runs`: the account's runs, newest first. `limit` is the size of a page (1 to 100, default 20).
+
+        `api_key_id` keeps the runs one key started; `from_` and `to` the runs created in that span (a time, or a day).
+        """
         def fetch(at: Optional[str]) -> SyncPage[Run]:
-            payload = self._client._request("GET", "/v1/runs", params={"scraper_id": scraper_id, "status": status, "limit": limit, "cursor": at})
+            payload = self._client._request("GET", "/v1/runs", params=_runs_params(scraper_id, status, api_key_id, from_, to, limit, at))
             return build_page(SyncPage, payload, "runs", Run.from_dict, fetch)
 
         return fetch(cursor)
@@ -199,6 +233,36 @@ class Runs:
 
         return fetch(cursor)
 
+    def export(self, run_id: str, format: RecordFormat, *, limit: Optional[int] = None, cursor: Optional[str] = None) -> RecordsExport:
+        """`GET /v1/runs/{id}/records?format=`: one page of a run's records written by the API, as `csv` or `ndjson`.
+
+        The CSV has a column for each field of the scraper's record schema (a nested object becomes `parent.child`, a
+        list one cell of JSON, a cell a spreadsheet would run as a formula starts with an apostrophe), and every page
+        begins with the header row. `next_cursor` continues; `export_all` follows it for you.
+        """
+        response = self._client._request("GET", f"/v1/runs/{path_segment(run_id)}/records", params=_export_params(format, limit, cursor),
+                                         headers={"Accept": _ACCEPT[format]}, raw=True)
+        return records_export(format, response)
+
+    def export_all(self, run_id: str, format: RecordFormat, *, limit: int = EXPORT_PAGE) -> Iterator[bytes]:
+        """Every record of a run, as `csv` or `ndjson`, page by page: write the pieces one after the other and the
+        result is one file (a CSV has its header row once)."""
+        cursor: Optional[str] = None
+        first = True
+        while True:
+            page = self.export(run_id, format, limit=limit, cursor=cursor)
+            yield page.content if first or format != "csv" else without_header(page.content)
+            first = False
+            if not page.next_cursor:
+                return
+            cursor = page.next_cursor
+
+    def file(self, run_id: str, name: str) -> bytes:
+        """`GET /v1/runs/{id}/files/{name}`: a file the run produced (a screenshot, say), with this client's key. A
+        record also carries the file's own address, which works without a key for an hour."""
+        response = self._client._request("GET", f"/v1/runs/{path_segment(run_id)}/files/{path_segment(name)}", headers=_FILE_ACCEPT, raw=True)
+        return bytes(response.content)
+
 
 class UsageResource:
     def __init__(self, client: "EnrichedNow") -> None:
@@ -213,6 +277,12 @@ class UsageResource:
         """
         return Usage.from_dict(self._client._request(
             "GET", "/v1/usage", params={"from": from_, "to": to, "group_by": group_by, "product": product}))
+
+    def standing(self) -> Standing:
+        """Where the account stands now: the month's units used and left, the top-up units, when the allowance
+        starts again, and runs in progress. Read from the headers of the smallest call that carries them."""
+        self._client._request("GET", "/v1/runs", params={"limit": 1})
+        return self._client.standing or _NO_STANDING
 
 
 class Postings:
@@ -445,7 +515,7 @@ class AsyncScrapers:
                   webhook_url: Optional[str] = None, idempotency_key: Optional[str] = None) -> Run:
         """`POST /v1/scrapers/{id}/runs`: start a run.
 
-        `wait` (0 to 60 seconds) asks the API to hold the request until the run ends or the time is up. The run that
+        `wait` (0 to 300 seconds) asks the API to hold the request until the run ends or the time is up. The run that
         comes back may still be `queued` or `running`: follow it with `client.runs.wait(run.id)`, or use
         `client.scrape()` to do both.
 
@@ -471,15 +541,19 @@ class AsyncRuns:
     def __init__(self, client: "AsyncEnrichedNow") -> None:
         self._client = client
 
-    async def get(self, run_id: str) -> Run:
-        """`GET /v1/runs/{id}`: the run as it is now."""
-        return Run.from_dict(await self._client._request("GET", f"/v1/runs/{path_segment(run_id)}"))
+    async def get(self, run_id: str, *, wait: Optional[float] = None) -> Run:
+        """`GET /v1/runs/{id}`: the run as it is now. `wait` (0 to 300 seconds) holds the request until the run has
+        ended or the time is up."""
+        wait = validate_wait(wait)
+        return Run.from_dict(await self._client._request("GET", f"/v1/runs/{path_segment(run_id)}", params={"wait": wait},
+                                                         timeout=self._client._timeout_for(wait)))
 
-    def list(self, *, scraper_id: Optional[str] = None, status: Optional[str] = None, limit: Optional[int] = None,
+    def list(self, *, scraper_id: Optional[str] = None, status: Optional[str] = None, api_key_id: Optional[str] = None,
+             from_: Optional[Moment] = None, to: Optional[Moment] = None, limit: Optional[int] = None,
              cursor: Optional[str] = None) -> AsyncPaginator[Run, AsyncPage[Run]]:
         """`GET /v1/runs`: the account's runs, newest first. Await it for a page, or `async for` over every run."""
         async def fetch(at: Optional[str]) -> AsyncPage[Run]:
-            payload = await self._client._request("GET", "/v1/runs", params={"scraper_id": scraper_id, "status": status, "limit": limit, "cursor": at})
+            payload = await self._client._request("GET", "/v1/runs", params=_runs_params(scraper_id, status, api_key_id, from_, to, limit, at))
             return build_page(AsyncPage, payload, "runs", Run.from_dict, fetch)
 
         return AsyncPaginator(fetch, cursor)
@@ -520,6 +594,29 @@ class AsyncRuns:
 
         return AsyncPaginator(fetch, cursor)
 
+    async def export(self, run_id: str, format: RecordFormat, *, limit: Optional[int] = None, cursor: Optional[str] = None) -> RecordsExport:
+        """`GET /v1/runs/{id}/records?format=`: one page of a run's records written by the API: see `EnrichedNow.runs.export`."""
+        response = await self._client._request("GET", f"/v1/runs/{path_segment(run_id)}/records", params=_export_params(format, limit, cursor),
+                                               headers={"Accept": _ACCEPT[format]}, raw=True)
+        return records_export(format, response)
+
+    async def export_all(self, run_id: str, format: RecordFormat, *, limit: int = EXPORT_PAGE) -> AsyncIterator[bytes]:
+        """Every record of a run, as `csv` or `ndjson`, page by page (`async for`); a CSV has its header row once."""
+        cursor: Optional[str] = None
+        first = True
+        while True:
+            page = await self.export(run_id, format, limit=limit, cursor=cursor)
+            yield page.content if first or format != "csv" else without_header(page.content)
+            first = False
+            if not page.next_cursor:
+                return
+            cursor = page.next_cursor
+
+    async def file(self, run_id: str, name: str) -> bytes:
+        """`GET /v1/runs/{id}/files/{name}`: a file the run produced, with this client's key."""
+        response = await self._client._request("GET", f"/v1/runs/{path_segment(run_id)}/files/{path_segment(name)}", headers=_FILE_ACCEPT, raw=True)
+        return bytes(response.content)
+
 
 class AsyncUsageResource:
     def __init__(self, client: "AsyncEnrichedNow") -> None:
@@ -534,6 +631,11 @@ class AsyncUsageResource:
         """
         return Usage.from_dict(await self._client._request(
             "GET", "/v1/usage", params={"from": from_, "to": to, "group_by": group_by, "product": product}))
+
+    async def standing(self) -> Standing:
+        """Where the account stands now: see `EnrichedNow.usage.standing`."""
+        await self._client._request("GET", "/v1/runs", params={"limit": 1})
+        return self._client.standing or _NO_STANDING
 
 
 class AsyncPostings:

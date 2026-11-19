@@ -131,6 +131,31 @@ for record in client.runs.records(run.id):      # every record, page after page
 Records are plain dicts in the shape of the scraper's `record_schema`. They are kept for 7 days after the run
 ended; after that the list is empty and `page.expired` is `True`.
 
+### CSV and NDJSON, written by the API
+
+```python
+with open("jobs.csv", "wb") as out:
+    for chunk in client.runs.export_all(run.id, "csv"):  # every page; the header row once
+        out.write(chunk)
+
+page = client.runs.export(run.id, "ndjson", limit=500)  # one page: page.content, page.next_cursor, page.expired
+```
+
+The CSV has a column for each field of the scraper's record schema, in its order, so every page of every run of a
+scraper has the same columns; a nested object becomes `parent.child` columns, a list one cell of JSON, and a cell
+a spreadsheet would run as a formula starts with an apostrophe.
+
+### Files
+
+A scraper that makes a file (a screenshot) puts its address in the record. `client.runs.file(run.id, "screenshot.png")`
+returns its bytes, read with your key.
+
+### Waiting longer in one call
+
+`wait` holds a request open until the run ends, up to 300 seconds, on starting a run and on reading one:
+`client.scrapers.run(..., wait=120)`, `client.runs.get(run.id, wait=120)`. `runs.list` also takes `api_key_id`,
+`from_` and `to`.
+
 ## The one-liner
 
 ```python
@@ -250,7 +275,22 @@ client.usage.get(product="data")                # the data allowance and its usa
 ```
 
 `group_by` is `day`, `scraper` or `product`. The period's first day is `from_` here (`from` in the API, a reserved
-word in Python); the same goes for `usage.period.from_`.
+word in Python); the same goes for `usage.period.from_`. `usage.unmetered` is `True` for an account with no unit
+limit.
+
+### Where the account stands
+
+Every answer about runs carries the account's units and runs in progress in its headers. The client keeps the last
+one it saw, and `usage.standing()` asks for it:
+
+```python
+standing = client.usage.standing()
+print(standing.units_remaining, standing.units_topup, standing.units_reset, standing.runs_remaining)
+print(standing.units_available)                 # what is left of the allowance, and the top-up units
+
+client.scrapers.run("ats.board", {...})
+client.standing                                 # as that answer said it, without another call
+```
 
 ## Datasets
 

@@ -26,6 +26,7 @@ from ._exceptions import (
     ServerError,
     ValidationError,
 )
+from ._models import RECORD_FORMATS, RecordsExport, Standing
 from ._pagination import _Page
 from ._version import __version__
 
@@ -35,7 +36,8 @@ DEFAULT_MAX_RETRIES = 2
 API_KEY_ENV = "ENRICHEDNOW_API_KEY"
 BASE_URL_ENV = "ENRICHEDNOW_BASE_URL"
 
-MAX_SERVER_WAIT = 60.0             # the most `wait` the API accepts on starting a run
+MAX_SERVER_WAIT = 300.0            # the most `wait` the API accepts, on starting a run and on reading one
+SCRAPE_SERVER_WAIT = 60.0          # what `scrape()` asks the API to hold a request for, before it polls
 WAIT_HEADROOM = 30.0               # how much longer than `wait` the HTTP request itself may take
 DEFAULT_POLL_INTERVAL = 2.0
 DEFAULT_RUN_TIMEOUT = 600.0
@@ -208,6 +210,18 @@ class BaseClient:
         self.base_url = (base_url or os.environ.get(BASE_URL_ENV) or DEFAULT_BASE_URL).rstrip("/")
         self.timeout: Timeout = timeout
         self.max_retries = max_retries
+        self._standing: Optional[Standing] = None
+
+    @property
+    def standing(self) -> Optional[Standing]:
+        """Where the account stood at the last answer that said so: every answer about runs carries the account's
+        units and runs in progress in its headers. `None` until such an answer has come; `usage.standing()` asks."""
+        return self._standing
+
+    def _note(self, response: httpx.Response) -> None:
+        standing = Standing.from_headers(response.headers)
+        if standing is not None:
+            self._standing = standing
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(base_url={self.base_url!r}, api_key='{self.api_key[:8]}…')"
@@ -281,6 +295,23 @@ def parse_json(response: httpx.Response) -> Any:
             body=response.text,
             response=response,
         ) from None
+
+
+def validate_format(format: str) -> str:
+    if format not in RECORD_FORMATS:
+        raise ValueError(f"format must be one of {', '.join(RECORD_FORMATS)}; for JSON use client.runs.records")
+    return format
+
+
+def records_export(format: str, response: httpx.Response) -> RecordsExport:
+    return RecordsExport(format=format, content=response.content, next_cursor=response.headers.get("x-next-cursor") or None,
+                         expired=response.headers.get("x-records-expired") == "true")
+
+
+def without_header(chunk: bytes) -> bytes:
+    """A CSV page after the first, without the header row every page starts with (the columns are the same)."""
+    end = chunk.find(b"\n")
+    return b"" if end < 0 else chunk[end + 1:]
 
 
 def validate_wait(wait: Optional[float]) -> Optional[float]:

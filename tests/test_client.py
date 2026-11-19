@@ -59,7 +59,7 @@ def test_base_url_is_configurable_and_the_key_is_not_in_the_repr(api: FakeAPI) -
 
 
 def test_version() -> None:
-    assert enrichednow.__version__ == "0.1.1"
+    assert enrichednow.__version__ == "0.2.0"
 
 
 # --- scrapers ---------------------------------------------------------------------------------------------------------
@@ -116,7 +116,7 @@ def test_scrapers_run_with_wait_holds_the_request_longer_than_the_wait(api: Fake
 
 def test_scrapers_run_refuses_a_wait_the_api_would_refuse(api: FakeAPI) -> None:
     with pytest.raises(ValueError):
-        api.client().scrapers.run("ats.board", {}, wait=61)
+        api.client().scrapers.run("ats.board", {}, wait=301)
     with pytest.raises(TypeError):
         api.client().scrapers.run("ats.board", "not a mapping")  # type: ignore[arg-type]
     assert api.requests == []

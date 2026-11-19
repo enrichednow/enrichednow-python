@@ -44,6 +44,10 @@ __all__ = [
     "WebhookSecret",
     "WebhookDelivery",
     "WebhookEvent",
+    "Standing",
+    "RecordFormat",
+    "RECORD_FORMATS",
+    "RecordsExport",
     "ACTIVE_STATUSES",
     "TERMINAL_STATUSES",
     "FAILURE_STATUSES",
@@ -245,6 +249,8 @@ class Usage(Model):
     total_units: int = _f()
     allowance_units: int = _f()
     rows: List[UsageRow] = _f(_list_of(UsageRow.from_dict), empty=list)
+    unmetered: Optional[bool] = _f()
+    """True for an account with no unit limit (the service's own): nothing it does is refused for units."""
 
 
 # --- datasets ---------------------------------------------------------------------------------------------------------
@@ -504,3 +510,76 @@ class WebhookEvent(Model):
         """The run that ended, as `client.runs.get` would return it."""
         run = self.data.get("run")
         return Run.from_dict(run) if isinstance(run, Mapping) else None
+
+
+# --- what rides on the headers ----------------------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Standing:
+    """Where the account stands, as the API says it in the headers of every answer about runs (`X-Units-*`,
+    `X-RateLimit-*`): `client.standing` is the last one seen, `client.usage.standing()` asks for it."""
+
+    units_limit: Optional[int]
+    """The month's allowance of units. For an unmetered account, the largest number the API's integers hold."""
+    units_used: Optional[int]
+    """Units of the month's allowance used so far."""
+    units_remaining: Optional[int]
+    """Units of the month's allowance left. Top-up units are counted apart."""
+    units_topup: Optional[int]
+    """Top-up units left: spent once the month's allowance is used up; they do not expire."""
+    units_reset: Optional[datetime]
+    """When the allowance starts again: the first of next month, UTC."""
+    runs_limit: Optional[int]
+    """Runs the account may have in progress at the same time."""
+    runs_remaining: Optional[int]
+    """How many more runs can be started now."""
+    unmetered: bool = False
+    """True for an account with no unit limit."""
+
+    @property
+    def units_available(self) -> Optional[int]:
+        """Units that can still be spent: what is left of the allowance, and the top-up units."""
+        if self.units_remaining is None:
+            return None
+        return self.units_remaining + (self.units_topup or 0)
+
+    @classmethod
+    def from_headers(cls, headers: Mapping[str, str]) -> Optional["Standing"]:
+        """The standing an answer's headers carry, or `None` when it carries none (an answer not about runs)."""
+        lower = {str(name).lower(): value for name, value in headers.items()}
+        if "x-units-limit" not in lower and "x-ratelimit-limit" not in lower:
+            return None
+
+        def number(name: str) -> Optional[int]:
+            value = lower.get(name)
+            try:
+                return int(value) if value is not None else None
+            except ValueError:
+                return None
+
+        return cls(units_limit=number("x-units-limit"), units_used=number("x-units-used"), units_remaining=number("x-units-remaining"),
+                   units_topup=number("x-units-topup"), units_reset=_datetime(lower.get("x-units-reset")),
+                   runs_limit=number("x-ratelimit-limit"), runs_remaining=number("x-ratelimit-remaining"),
+                   unmetered=lower.get("x-units-unmetered") == "true")
+
+
+RecordFormat = Literal["csv", "ndjson"]
+"""How `client.runs.export` asks the API to write records: `csv` (a header row, then a row a record) or `ndjson`."""
+RECORD_FORMATS: Tuple[str, ...] = get_args(RecordFormat)
+
+
+@dataclass(frozen=True)
+class RecordsExport:
+    """One page of a run's records as the API wrote it (`GET /v1/runs/{id}/records?format=`)."""
+
+    format: str
+    content: bytes = field(repr=False)
+    next_cursor: Optional[str] = None
+    """Where the next page starts (the `X-Next-Cursor` header); `None` on the last page."""
+    expired: bool = False
+    """True when the records are gone: they are kept 7 days after a run ends."""
+
+    @property
+    def text(self) -> str:
+        return self.content.decode("utf-8")

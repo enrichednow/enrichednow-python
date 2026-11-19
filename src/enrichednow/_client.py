@@ -13,7 +13,7 @@ from ._base import (
     DEFAULT_POLL_INTERVAL,
     DEFAULT_RUN_TIMEOUT,
     DEFAULT_TIMEOUT,
-    MAX_SERVER_WAIT,
+    SCRAPE_SERVER_WAIT,
     USE_CLIENT_TIMEOUT,
     BaseClient,
     Timeout,
@@ -86,7 +86,7 @@ class AsyncScrapeResult:
 
 
 def _server_wait(timeout: Optional[float]) -> float:
-    return MAX_SERVER_WAIT if timeout is None else max(0.0, min(MAX_SERVER_WAIT, float(timeout)))
+    return SCRAPE_SERVER_WAIT if timeout is None else max(0.0, min(SCRAPE_SERVER_WAIT, float(timeout)))
 
 
 class EnrichedNow(BaseClient):
@@ -133,7 +133,9 @@ class EnrichedNow(BaseClient):
         idempotent: bool = True,
         timeout: Any = USE_CLIENT_TIMEOUT,
         headers: Optional[Mapping[str, str]] = None,
+        raw: bool = False,
     ) -> Any:
+        """The answer's JSON (`raw`: the answer itself, for a body that is not JSON)."""
         headers = {**self._headers, **headers} if headers else self._headers
         attempt = 0
         while True:
@@ -151,7 +153,10 @@ class EnrichedNow(BaseClient):
                 error = error_from_transport(exc)
                 error.__cause__ = exc
             else:
+                self._note(response)
                 if response.is_success:
+                    if raw:
+                        return response
                     return None if response.status_code == 204 else parse_json(response)
                 error = error_from_response(response)
             delay = self._retry_delay(error, attempt=attempt, idempotent=idempotent)
@@ -246,7 +251,9 @@ class AsyncEnrichedNow(BaseClient):
         idempotent: bool = True,
         timeout: Any = USE_CLIENT_TIMEOUT,
         headers: Optional[Mapping[str, str]] = None,
+        raw: bool = False,
     ) -> Any:
+        """The answer's JSON (`raw`: the answer itself, for a body that is not JSON)."""
         headers = {**self._headers, **headers} if headers else self._headers
         attempt = 0
         while True:
@@ -264,7 +271,10 @@ class AsyncEnrichedNow(BaseClient):
                 error = error_from_transport(exc)
                 error.__cause__ = exc
             else:
+                self._note(response)
                 if response.is_success:
+                    if raw:
+                        return response
                     return None if response.status_code == 204 else parse_json(response)
                 error = error_from_response(response)
             delay = self._retry_delay(error, attempt=attempt, idempotent=idempotent)
