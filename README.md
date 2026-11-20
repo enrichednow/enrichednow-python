@@ -69,7 +69,7 @@ close a client it did not create.
 
 ```python
 for scraper in client.scrapers.list():          # the catalogue
-    print(scraper.id, scraper.title, scraper.billing_unit)
+    print(scraper.id, scraper.title, scraper.unit_cost, "units a", scraper.billing_unit)
 
 scraper = client.scrapers.get("ats.board")      # with JSON Schemas
 print(scraper.input_schema)                     # what goes in `input`
@@ -105,8 +105,12 @@ for run in client.runs.list(scraper_id="ats.board", status="ok"):
     print(run.id, run.created_at, run.record_count)
 ```
 
+`unit_cost` is what the scraper costs: `units_per_request` for one billed per request, `units_per_record` (each
+record) for one billed per record.
+
 A `Run` has `id`, `scraper_id`, `scraper_version`, `status`, `reason`, `input`, `record_count`, `units`,
-`diagnostics`, `created_at`, `started_at` and `finished_at`, plus a few helpers:
+`units_per_request` and `units_per_record` (its rate, fixed when it started), `diagnostics`, `created_at`,
+`started_at` and `finished_at`, plus a few helpers:
 
 | | |
 | --- | --- |
@@ -410,7 +414,7 @@ except enrichednow.APIError as error:
 | `status_code` | The HTTP status. |
 | `code` | The API's stable error code. |
 | `message` | A sentence for a person. Show it or log it; do not parse it. |
-| `details` | Always a dict. `fields` for `invalid_input`; `used_units` and `allowance_units` for `quota_exceeded`; `active_runs` and `max_concurrent_runs` for `too_many_runs`. |
+| `details` | Always a dict. `fields` for `invalid_input`; `used_units` and `allowance_units` for `quota_exceeded` (and `topup_units` and `units_needed` when starting a run was refused); `active_runs` and `max_concurrent_runs` for `too_many_runs`. |
 | `reason` | `details["reason"]` when the API gives one, such as `email_not_verified` on a 403. |
 | `request_id` | The request id, when the answer has one; otherwise `None`. |
 | `body`, `response` | The parsed body and the `httpx.Response`. |

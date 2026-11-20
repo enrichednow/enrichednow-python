@@ -173,6 +173,18 @@ class QuotaExceededError(ValidationError):
         value = self.details.get("allowance_units")
         return value if isinstance(value, int) else None
 
+    @property
+    def topup_units(self) -> Optional[int]:
+        """The top-up units left (0: spent too), when starting a run was refused."""
+        value = self.details.get("topup_units")
+        return value if isinstance(value, int) else None
+
+    @property
+    def units_needed(self) -> Optional[int]:
+        """The least the run would have cost: its scraper's units per request, or per record for one record."""
+        value = self.details.get("units_needed")
+        return value if isinstance(value, int) else None
+
 
 class ServerError(APIError):
     """5xx: something went wrong on the API's side (`internal`, `data_unavailable`)."""

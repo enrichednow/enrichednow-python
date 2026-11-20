@@ -154,6 +154,15 @@ class Scraper(Model):
     """`request` or `record`."""
     data_class: str = _f()
     availability: str = _f()
+    units_per_request: Optional[int] = _f()
+    """For a scraper billed per request: the units a run that ends `ok` or `partial` costs. None otherwise."""
+    units_per_record: Optional[int] = _f()
+    """For a scraper billed per record: the units each record of a charged run costs. None otherwise."""
+
+    @property
+    def unit_cost(self) -> int:
+        """What the scraper costs, a run or a record by its billing unit (1 when the API did not say)."""
+        return (self.units_per_record if self.billing_unit == "record" else self.units_per_request) or 1
 
 
 @dataclass(frozen=True)
@@ -194,6 +203,10 @@ class Run(Model):
     created_at: Optional[datetime] = _f(_datetime)
     started_at: Optional[datetime] = _f(_datetime)
     finished_at: Optional[datetime] = _f(_datetime)
+    units_per_request: Optional[int] = _f()
+    """The run's rate, fixed when it started, for a scraper billed per request. None otherwise."""
+    units_per_record: Optional[int] = _f()
+    """The run's rate, fixed when it started, for a scraper billed per record: units a record. None otherwise."""
 
     @property
     def is_terminal(self) -> bool:

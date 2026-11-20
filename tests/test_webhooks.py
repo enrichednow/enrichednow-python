@@ -441,6 +441,14 @@ def test_parse_webhook_returns_the_event() -> None:
     assert enrichednow.parse_webhook is parse_webhook
 
 
+def test_a_webhook_events_run_carries_its_rate() -> None:
+    body = json.dumps({"id": "evt_2", "type": "run.succeeded", "created_at": "2026-11-18T10:00:02Z",
+                       "data": {"run": run_json("ok", units_per_request=None, units_per_record=3)}}).encode()
+    timestamp = now()
+    event = parse_webhook(SECRET, timestamp, body, sign(SECRET, timestamp, body))
+    assert event.run is not None and (event.run.units_per_request, event.run.units_per_record) == (None, 3)
+
+
 def test_parse_webhook_raises_the_librarys_error_on_a_bad_signature() -> None:
     timestamp = now()
     with pytest.raises(WebhookVerificationError) as caught:

@@ -59,13 +59,13 @@ def test_base_url_is_configurable_and_the_key_is_not_in_the_repr(api: FakeAPI) -
 
 
 def test_version() -> None:
-    assert enrichednow.__version__ == "0.2.0"
+    assert enrichednow.__version__ == "0.3.0"
 
 
 # --- scrapers ---------------------------------------------------------------------------------------------------------
 
 CARD = {"id": "ats.board", "version": 3, "title": "ATS board", "summary": "Reads a board.", "mode": "job",
-        "billing_unit": "record", "data_class": "public", "availability": "public"}
+        "billing_unit": "record", "units_per_request": None, "units_per_record": 4, "data_class": "public", "availability": "public"}
 
 
 def test_scrapers_list(api: FakeAPI) -> None:
@@ -74,6 +74,11 @@ def test_scrapers_list(api: FakeAPI) -> None:
     assert api.sent() == {"method": "GET", "path": "/v1/scrapers", "raw_path": "/v1/scrapers", "params": {}, "json": None}
     assert [s.id for s in scrapers] == ["ats.board", "web.fetch"]
     assert scrapers[0].billing_unit == "record" and scrapers[0].version == 3
+    assert (scrapers[0].units_per_record, scrapers[0].units_per_request, scrapers[0].unit_cost) == (4, None, 4)
+    old = {k: v for k, v in CARD.items() if not k.startswith("units_per")}          # an API from before costs differed
+    api.answers.clear()
+    api.reply(ok({"scrapers": [old]}))
+    assert api.client().scrapers.list()[0].unit_cost == 1
     assert scrapers[1].raw["something_new"] == 1          # a field this version does not know is kept, not a failure
 
 
@@ -317,6 +322,29 @@ def test_quota_exceeded_says_where_the_account_stands(api: FakeAPI) -> None:
     with pytest.raises(QuotaExceededError) as caught:
         api.client().scrapers.run("ats.board", {})
     assert (caught.value.used_units, caught.value.allowance_units) == (1000, 1000) and len(api.requests) == 1
+
+
+def test_quota_exceeded_says_what_the_run_needed(api: FakeAPI) -> None:
+    details = {"used_units": 998, "allowance_units": 1000, "topup_units": 0, "units_needed": 5}
+    api.reply(ok(error_json("quota_exceeded", "Used up.", details), status=402))
+    with pytest.raises(QuotaExceededError) as caught:
+        api.client().scrapers.run("ats.board", {})
+    assert (caught.value.units_needed, caught.value.topup_units) == (5, 0)
+    api.answers.clear()
+    api.reply(ok(error_json("quota_exceeded", "Used up.", {"used_units": 1}), status=402))
+    with pytest.raises(QuotaExceededError) as caught:
+        api.client().scrapers.run("ats.board", {})
+    assert (caught.value.units_needed, caught.value.topup_units) == (None, None)    # an API from before costs differed
+
+
+def test_a_run_carries_its_rate(api: FakeAPI) -> None:
+    api.reply(ok(run_json("ok", units_per_request=5, units_per_record=None)))
+    run = api.client().runs.get("run_1")
+    assert (run.units_per_request, run.units_per_record) == (5, None)
+    api.answers.clear()
+    api.reply(ok(run_json("ok")))
+    run = api.client().runs.get("run_1")
+    assert (run.units_per_request, run.units_per_record) == (None, None)
 
 
 def test_a_request_id_is_kept_when_the_api_sends_one(api: FakeAPI) -> None:
