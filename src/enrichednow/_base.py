@@ -21,6 +21,7 @@ from ._exceptions import (
     NotFoundError,
     ConflictError,
     PermissionDeniedError,
+    LimitReachedError,
     QuotaExceededError,
     RateLimitError,
     ServerError,
@@ -174,7 +175,7 @@ def error_from_response(response: httpx.Response) -> APIError:
     if status == 429:
         return RateLimitError(text, retry_after=_retry_after(response), **common)
     if status == 402:
-        return QuotaExceededError(text, **common)
+        return (LimitReachedError if code == "limit_reached" else QuotaExceededError)(text, **common)
     if 400 <= status < 500:
         return ValidationError(text, **common)
     if status >= 500:

@@ -17,6 +17,7 @@ from enrichednow import (
     NotFoundError,
     ConflictError,
     PermissionDeniedError,
+    LimitReachedError,
     QuotaExceededError,
     RateLimitError,
     RunFailedError,
@@ -59,7 +60,7 @@ def test_base_url_is_configurable_and_the_key_is_not_in_the_repr(api: FakeAPI) -
 
 
 def test_version() -> None:
-    assert enrichednow.__version__ == "0.3.0"
+    assert enrichednow.__version__ == "0.3.1"
 
 
 # --- scrapers ---------------------------------------------------------------------------------------------------------
@@ -285,6 +286,7 @@ def test_scrape_gives_up_after_the_timeout(api: FakeAPI) -> None:
     (403, "forbidden", PermissionDeniedError),
     (404, "not_found", NotFoundError),
     (402, "quota_exceeded", QuotaExceededError),
+    (402, "limit_reached", LimitReachedError),
     (422, "invalid_input", ValidationError),
     (400, "invalid_input", ValidationError),
     (429, "too_many_runs", RateLimitError),
@@ -335,6 +337,21 @@ def test_quota_exceeded_says_what_the_run_needed(api: FakeAPI) -> None:
     with pytest.raises(QuotaExceededError) as caught:
         api.client().scrapers.run("ats.board", {})
     assert (caught.value.units_needed, caught.value.topup_units) == (None, None)    # an API from before costs differed
+
+
+def test_limit_reached_is_its_own_error_and_still_a_quota_error(api: FakeAPI) -> None:
+    details = {"scope": "key", "key_id": "key_1", "limit_units": 100, "used_units": 100, "units_needed": 1}
+    api.reply(ok(error_json("limit_reached", "This API key's monthly limit of 100 units is reached.", details), status=402))
+    with pytest.raises(QuotaExceededError) as caught:                 # an existing `except QuotaExceededError` still catches it
+        api.client().scrapers.run("ats.board", {})
+    error = caught.value
+    assert isinstance(error, LimitReachedError) and error.code == "limit_reached" and len(api.requests) == 1
+    assert (error.scope, error.key_id, error.limit_units, error.used_units, error.units_needed) == ("key", "key_1", 100, 100, 1)
+    api.answers.clear()
+    api.reply(ok(error_json("limit_reached", "The account's monthly spend limit is reached.", {"scope": "account", "limit_units": 5}), status=402))
+    with pytest.raises(LimitReachedError) as caught:
+        api.client().scrapers.run("ats.board", {})
+    assert (caught.value.scope, caught.value.key_id, caught.value.allowance_units) == ("account", None, None)
 
 
 def test_a_run_carries_its_rate(api: FakeAPI) -> None:

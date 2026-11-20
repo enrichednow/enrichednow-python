@@ -11,7 +11,8 @@
     │   ├── ConflictError             409
     │   ├── RateLimitError            429
     │   ├── ValidationError           any other 4xx (422 `invalid_input`)
-    │   │   └── QuotaExceededError    402
+    │   │   └── QuotaExceededError    402 `quota_exceeded`
+    │   │       └── LimitReachedError 402 `limit_reached`: a spend limit of the account's own, or of the key
     │   └── ServerError               5xx
     ├── RunFailedError                a run ended failed, unsupported or cancelled
     ├── WaitTimeoutError              a run did not end within the time given
@@ -39,6 +40,7 @@ __all__ = [
     "RateLimitError",
     "ValidationError",
     "QuotaExceededError",
+    "LimitReachedError",
     "ServerError",
     "RunFailedError",
     "WaitTimeoutError",
@@ -183,6 +185,31 @@ class QuotaExceededError(ValidationError):
     def units_needed(self) -> Optional[int]:
         """The least the run would have cost: its scraper's units per request, or per record for one record."""
         value = self.details.get("units_needed")
+        return value if isinstance(value, int) else None
+
+
+class LimitReachedError(QuotaExceededError):
+    """402 `limit_reached`: the run would go past a spend limit the account set itself: its monthly limit (`scope`
+    `"account"`) or the API key's (`scope` `"key"`, with `key_id`). Units may be left on the plan: raising the limit,
+    in the console, is what helps. Nothing was created or charged. A `QuotaExceededError`, so code that catches that
+    one catches this too."""
+
+    @property
+    def scope(self) -> Optional[str]:
+        """`"account"` or `"key"`: whose limit was reached."""
+        value = self.details.get("scope")
+        return value if isinstance(value, str) else None
+
+    @property
+    def key_id(self) -> Optional[str]:
+        """The API key whose limit was reached, when `scope` is `"key"`."""
+        value = self.details.get("key_id")
+        return value if isinstance(value, str) else None
+
+    @property
+    def limit_units(self) -> Optional[int]:
+        """The limit, in units a calendar month."""
+        value = self.details.get("limit_units")
         return value if isinstance(value, int) else None
 
 

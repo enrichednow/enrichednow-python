@@ -382,6 +382,7 @@ EnrichedNowError
 │   ├── RateLimitError              429 too_many_runs, rate_limited
 │   ├── ValidationError             422 invalid_input, and any other 4xx
 │   │   └── QuotaExceededError      402 quota_exceeded
+│   │       └── LimitReachedError   402 limit_reached: the account's or the key's own spend limit
 │   └── ServerError                 5xx internal, data_unavailable
 ├── RunFailedError                  a run ended failed, unsupported or cancelled
 ├── WaitTimeoutError                a run did not end within the time given
@@ -395,6 +396,8 @@ import enrichednow
 
 try:
     client.scrapers.run("ats.board", {"board": "acme"})
+except enrichednow.LimitReachedError as error:          # before QuotaExceededError: it is one
+    print(error.scope, error.limit_units, error.used_units)   # "account" or "key"; raise the limit in the console
 except enrichednow.QuotaExceededError as error:
     print(error.used_units, error.allowance_units)
 except enrichednow.ValidationError as error:
@@ -414,7 +417,7 @@ except enrichednow.APIError as error:
 | `status_code` | The HTTP status. |
 | `code` | The API's stable error code. |
 | `message` | A sentence for a person. Show it or log it; do not parse it. |
-| `details` | Always a dict. `fields` for `invalid_input`; `used_units` and `allowance_units` for `quota_exceeded` (and `topup_units` and `units_needed` when starting a run was refused); `active_runs` and `max_concurrent_runs` for `too_many_runs`. |
+| `details` | Always a dict. `fields` for `invalid_input`; `used_units` and `allowance_units` for `quota_exceeded` (and `topup_units` and `units_needed` when starting a run was refused); `scope`, `limit_units`, `used_units`, `units_needed` (and `key_id` for a key) for `limit_reached`; `active_runs` and `max_concurrent_runs` for `too_many_runs`. |
 | `reason` | `details["reason"]` when the API gives one, such as `email_not_verified` on a 403. |
 | `request_id` | The request id, when the answer has one; otherwise `None`. |
 | `body`, `response` | The parsed body and the `httpx.Response`. |
