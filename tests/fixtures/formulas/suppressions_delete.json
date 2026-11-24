@@ -1,0 +1,10 @@
+{
+  "request": {
+    "method": "DELETE",
+    "path": "/v1/suppressions/domain/globex.example"
+  },
+  "response": {
+    "status": 204,
+    "headers": {}
+  }
+}

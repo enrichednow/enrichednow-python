@@ -1,0 +1,1537 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/v1/formulas/job-order-hunter"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "id": "job-order-hunter",
+      "version": "1.1.0",
+      "title": "Job Order Hunter",
+      "summary": "Companies newly hiring for your roles and places, qualified by size and industry, with the person to contact.",
+      "use_when": "Use when a recruiter wants companies hiring for given roles in given places, with someone to call about the job.",
+      "category": "recruiting",
+      "personas": [
+        "recruiter",
+        "research_analyst",
+        "staffing_agency"
+      ],
+      "status": "beta",
+      "available": true,
+      "needs_provider": true,
+      "recommended_cadence": "weekdays",
+      "schedules": [
+        "daily",
+        "weekdays",
+        "weekly"
+      ],
+      "needs_attestation": true,
+      "health": {
+        "status": "ok",
+        "degraded_sources": [],
+        "success_rate_7d": null,
+        "median_seconds_7d": null
+      },
+      "basics": [
+        {
+          "name": "job_titles",
+          "title": "Job titles",
+          "type": "list of strings",
+          "required": true,
+          "help": "The roles you recruit for, each searched as you type it."
+        },
+        {
+          "name": "locations",
+          "title": "Locations",
+          "type": "list of strings",
+          "required": true,
+          "help": "A city, region or country for each place you cover."
+        },
+        {
+          "name": "posted_within_days",
+          "title": "Posted within (days)",
+          "type": "integer",
+          "required": false,
+          "help": "Only jobs posted in the last this many days."
+        }
+      ],
+      "description": "Finds the companies that posted the roles you recruit for, in the places you cover, across the job boards and, when you name target companies, their own careers pages. Each company is matched to its website, sized up and checked against your exclusions; staffing agencies are left out. A company whose own careers page lists the role ranks higher. The result is one row for each company, job and contact, best first, and can be read one row per company.",
+      "parameters": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "job_titles",
+          "locations"
+        ],
+        "properties": {
+          "job_titles": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 10,
+            "items": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 120
+            },
+            "title": "Job titles",
+            "examples": [
+              [
+                "Java Developer",
+                "DevOps Engineer"
+              ]
+            ],
+            "x-widget": "tags",
+            "x-group": "Basics",
+            "x-help": "The roles you recruit for, each searched as you type it.",
+            "x-variation-key": true,
+            "x-cost-driver": true
+          },
+          "locations": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 10,
+            "items": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 120
+            },
+            "title": "Locations",
+            "examples": [
+              [
+                "London"
+              ]
+            ],
+            "x-widget": "location",
+            "x-group": "Basics",
+            "x-help": "A city, region or country for each place you cover.",
+            "x-variation-key": true,
+            "x-cost-driver": true
+          },
+          "posted_within_days": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 30,
+            "default": 1,
+            "title": "Posted within (days)",
+            "x-widget": "number",
+            "x-group": "Basics",
+            "x-help": "Only jobs posted in the last this many days."
+          },
+          "sources": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "linkedin",
+                "indeed",
+                "google_jobs",
+                "dice",
+                "reed",
+                "totaljobs",
+                "stepstone",
+                "seek",
+                "simplyhired",
+                "wellfound",
+                "xing",
+                "irishjobs",
+                "ycombinator",
+                "ats_boards"
+              ]
+            },
+            "default": [
+              "linkedin",
+              "indeed",
+              "google_jobs"
+            ],
+            "title": "Job boards",
+            "x-widget": "multiselect",
+            "x-group": "Filters",
+            "x-help": "Which boards to search. The careers pages of target companies are read when you choose them and name the companies.",
+            "x-cost-driver": true,
+            "x-offered-in": {
+              "dice": [
+                "US"
+              ],
+              "reed": [
+                "GB"
+              ],
+              "totaljobs": [
+                "GB"
+              ],
+              "stepstone": [
+                "DE"
+              ],
+              "seek": [
+                "AU"
+              ],
+              "simplyhired": [
+                "US"
+              ],
+              "xing": [
+                "DE",
+                "AT",
+                "CH"
+              ],
+              "irishjobs": [
+                "IE"
+              ],
+              "ycombinator": [
+                "US"
+              ]
+            }
+          },
+          "title_synonyms": {
+            "type": "boolean",
+            "default": false,
+            "title": "Search other names of the same job",
+            "x-widget": "toggle",
+            "x-group": "Filters",
+            "x-help": "Also searches the names the same job is often advertised under, such as RN for Registered Nurse.",
+            "x-cost-driver": true
+          },
+          "target_companies": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "type": "string",
+              "minLength": 4,
+              "maxLength": 300
+            },
+            "default": [],
+            "title": "Target companies",
+            "x-widget": "company_list",
+            "x-group": "Filters",
+            "x-help": "Domains or careers pages whose own openings are read when Careers pages is chosen as a board.",
+            "x-cost-driver": true
+          },
+          "results_per_search": {
+            "type": "integer",
+            "minimum": 5,
+            "maximum": 200,
+            "default": 50,
+            "title": "Jobs read per search",
+            "x-widget": "number",
+            "x-group": "Filters",
+            "x-help": "How many jobs to read for each title, place and board.",
+            "x-cost-driver": true
+          },
+          "employment_types": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "full_time",
+                "part_time",
+                "contract",
+                "temporary"
+              ]
+            },
+            "default": [],
+            "title": "Employment types",
+            "x-widget": "multiselect",
+            "x-group": "Filters",
+            "x-help": "Leave empty for any."
+          },
+          "company_size": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "min": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "max": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": [
+              "min",
+              "max"
+            ],
+            "default": {
+              "min": 11,
+              "max": 5000
+            },
+            "title": "Company size (employees)",
+            "x-widget": "range",
+            "x-group": "Filters",
+            "x-help": "Companies whose size is not known are kept."
+          },
+          "industries_include": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 80
+            },
+            "default": [],
+            "title": "Only these industries",
+            "x-widget": "tags",
+            "x-group": "Filters",
+            "x-help": "Leave empty for any."
+          },
+          "industries_exclude": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 80
+            },
+            "default": [],
+            "title": "Not these industries",
+            "x-widget": "tags",
+            "x-group": "Filters",
+            "x-help": "Companies in these industries are left out."
+          },
+          "exclude_staffing_agencies": {
+            "type": "boolean",
+            "default": true,
+            "title": "Leave out staffing agencies",
+            "x-widget": "toggle",
+            "x-group": "Filters",
+            "x-help": "Recruiters' own postings are rarely a job order."
+          },
+          "exclude_companies": {
+            "type": "array",
+            "maxItems": 5000,
+            "items": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "default": [],
+            "title": "Companies to leave out",
+            "x-widget": "company_list",
+            "x-group": "Filters",
+            "x-help": "Names or domains, such as your existing clients."
+          },
+          "min_open_roles": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1,
+            "title": "Least open roles",
+            "x-widget": "number",
+            "x-group": "Filters",
+            "x-help": "Matching roles a company needs to have open."
+          },
+          "title_exclude_keywords": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 60
+            },
+            "default": [],
+            "title": "Words to leave out of titles",
+            "x-widget": "tags",
+            "x-group": "Filters",
+            "x-help": "For example intern or unpaid."
+          },
+          "check_careers_pages": {
+            "type": "boolean",
+            "default": true,
+            "title": "Check their careers pages",
+            "x-widget": "toggle",
+            "x-group": "Enrichment",
+            "x-help": "Reads the careers page of the companies with the most matching roles; a role listed there ranks higher.",
+            "x-cost-driver": true
+          },
+          "careers_pages_max": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 25,
+            "title": "Careers pages to read",
+            "x-widget": "number",
+            "x-group": "Enrichment",
+            "x-help": "How many companies' careers pages to read, those with the most matching roles first.",
+            "x-cost-driver": true
+          },
+          "contact_titles": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 80
+            },
+            "default": [
+              "Talent Acquisition",
+              "HR Manager",
+              "Hiring Manager"
+            ],
+            "title": "Who to contact",
+            "x-widget": "tags",
+            "x-group": "Enrichment",
+            "x-help": "The roles of the people to find at each company."
+          },
+          "contact_seniority": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "manager",
+                "director",
+                "vp",
+                "c_level"
+              ]
+            },
+            "default": [
+              "manager",
+              "director",
+              "vp",
+              "c_level"
+            ],
+            "title": "Contact seniority",
+            "x-widget": "multiselect",
+            "x-group": "Enrichment",
+            "x-help": "How senior the people to find should be."
+          },
+          "contacts_per_company": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 5,
+            "default": 2,
+            "title": "Contacts per company",
+            "x-widget": "number",
+            "x-group": "Enrichment",
+            "x-help": "0 turns contacts off.",
+            "x-cost-driver": true
+          },
+          "require_verified_email": {
+            "type": "boolean",
+            "default": true,
+            "title": "Only addresses that pass the check",
+            "x-widget": "toggle",
+            "x-group": "Enrichment",
+            "x-help": "Keeps addresses whose domain takes mail, and those a verification provider confirmed."
+          },
+          "resurface_after_days": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 365,
+            "default": 45,
+            "title": "Show a company again after (days)",
+            "x-widget": "number",
+            "x-group": "Output",
+            "x-help": "For a saved formula, how long before a delivered row may come back."
+          },
+          "max_results": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5000,
+            "default": 200,
+            "title": "Most rows",
+            "x-widget": "number",
+            "x-group": "Output",
+            "x-help": "The run stops at this many rows, best first.",
+            "x-cost-driver": true
+          }
+        }
+      },
+      "presets": [
+        {
+          "id": "it-contract-uk",
+          "label": "IT contract desk (UK)",
+          "params": {
+            "job_titles": [
+              "Java Developer",
+              "DevOps Engineer"
+            ],
+            "locations": [
+              "London"
+            ],
+            "sources": [
+              "linkedin",
+              "indeed",
+              "reed",
+              "totaljobs"
+            ],
+            "employment_types": [
+              "contract"
+            ]
+          }
+        },
+        {
+          "id": "healthcare-us",
+          "label": "Healthcare permanent (US)",
+          "params": {
+            "job_titles": [
+              "Registered Nurse"
+            ],
+            "locations": [
+              "Texas"
+            ],
+            "employment_types": [
+              "full_time"
+            ],
+            "industries_include": [
+              "Hospital",
+              "Health"
+            ],
+            "title_synonyms": true
+          }
+        },
+        {
+          "id": "light-industrial-us",
+          "label": "Light industrial (US)",
+          "params": {
+            "job_titles": [
+              "Warehouse Associate",
+              "Forklift Operator"
+            ],
+            "locations": [
+              "Ohio"
+            ]
+          }
+        },
+        {
+          "id": "tech-startups",
+          "label": "Tech startups (Wellfound and Y Combinator)",
+          "params": {
+            "job_titles": [
+              "Software Engineer"
+            ],
+            "locations": [
+              "San Francisco",
+              "Remote"
+            ],
+            "sources": [
+              "wellfound",
+              "ycombinator"
+            ],
+            "posted_within_days": 30,
+            "company_size": {
+              "min": 2,
+              "max": 500
+            }
+          }
+        },
+        {
+          "id": "hiring-spike",
+          "label": "Hiring spike (3 or more roles this week)",
+          "params": {
+            "posted_within_days": 7,
+            "min_open_roles": 3
+          }
+        }
+      ],
+      "steps": [
+        {
+          "id": "search_linkedin",
+          "kind": "scrape",
+          "label": "Find"
+        },
+        {
+          "id": "search_indeed",
+          "kind": "scrape",
+          "label": "Find"
+        },
+        {
+          "id": "search_google_jobs",
+          "kind": "scrape",
+          "label": "Find"
+        },
+        {
+          "id": "search_dice",
+          "kind": "scrape",
+          "label": "Find"
+        },
+        {
+          "id": "search_reed",
+          "kind": "scrape",
+          "label": "Find"
+        },
+        {
+          "id": "search_totaljobs",
+          "kind": "scrape",
+          "label": "Find"
+        },
+        {
+          "id": "search_stepstone",
+          "kind": "scrape",
+          "label": "Find"
+        },
+        {
+          "id": "search_seek",
+          "kind": "scrape",
+          "label": "Find"
+        },
+        {
+          "id": "search_simplyhired",
+          "kind": "scrape",
+          "label": "Find"
+        },
+        {
+          "id": "search_wellfound",
+          "kind": "scrape",
+          "label": "Find"
+        },
+        {
+          "id": "search_xing",
+          "kind": "scrape",
+          "label": "Find"
+        },
+        {
+          "id": "search_irishjobs",
+          "kind": "scrape",
+          "label": "Find"
+        },
+        {
+          "id": "search_ycombinator",
+          "kind": "scrape",
+          "label": "Find"
+        },
+        {
+          "id": "targets",
+          "kind": "query",
+          "label": "Find"
+        },
+        {
+          "id": "search_ats",
+          "kind": "scrape",
+          "label": "Find"
+        },
+        {
+          "id": "jobs",
+          "kind": "merge",
+          "label": "Combine"
+        },
+        {
+          "id": "recent",
+          "kind": "filter",
+          "label": "Filter"
+        },
+        {
+          "id": "company_match",
+          "kind": "resolve",
+          "label": "Match"
+        },
+        {
+          "id": "new_only",
+          "kind": "exclude_seen",
+          "label": "Filter"
+        },
+        {
+          "id": "not_excluded",
+          "kind": "filter",
+          "label": "Filter"
+        },
+        {
+          "id": "share_company_page",
+          "kind": "aggregate",
+          "label": "Match"
+        },
+        {
+          "id": "firmographics_linkedin",
+          "kind": "enrich",
+          "label": "Enrich"
+        },
+        {
+          "id": "firmographics_indeed",
+          "kind": "enrich",
+          "label": "Enrich"
+        },
+        {
+          "id": "qualify",
+          "kind": "filter",
+          "label": "Filter"
+        },
+        {
+          "id": "role_count",
+          "kind": "aggregate",
+          "label": "Count"
+        },
+        {
+          "id": "enough_roles",
+          "kind": "filter",
+          "label": "Filter"
+        },
+        {
+          "id": "careers_companies",
+          "kind": "aggregate",
+          "label": "Check"
+        },
+        {
+          "id": "careers_known",
+          "kind": "filter",
+          "label": "Check"
+        },
+        {
+          "id": "careers_order",
+          "kind": "rank",
+          "label": "Check"
+        },
+        {
+          "id": "careers_check",
+          "kind": "scrape",
+          "label": "Check"
+        },
+        {
+          "id": "with_careers",
+          "kind": "merge",
+          "label": "Check"
+        },
+        {
+          "id": "careers_flags",
+          "kind": "aggregate",
+          "label": "Check"
+        },
+        {
+          "id": "careers_counts",
+          "kind": "aggregate",
+          "label": "Check"
+        },
+        {
+          "id": "board_postings",
+          "kind": "filter",
+          "label": "Check"
+        },
+        {
+          "id": "describe_linkedin",
+          "kind": "enrich",
+          "label": "Enrich"
+        },
+        {
+          "id": "describe_indeed",
+          "kind": "enrich",
+          "label": "Enrich"
+        },
+        {
+          "id": "tag_contract",
+          "kind": "classify",
+          "label": "Tag"
+        },
+        {
+          "id": "right_contract",
+          "kind": "filter",
+          "label": "Filter"
+        },
+        {
+          "id": "tag_technologies",
+          "kind": "classify",
+          "label": "Tag"
+        },
+        {
+          "id": "tag_no_agencies",
+          "kind": "classify",
+          "label": "Tag"
+        },
+        {
+          "id": "best_first",
+          "kind": "rank",
+          "label": "Rank"
+        },
+        {
+          "id": "people",
+          "kind": "find_people",
+          "label": "Find people"
+        },
+        {
+          "id": "contact",
+          "kind": "find_contact",
+          "label": "Find contact"
+        },
+        {
+          "id": "verify_kept",
+          "kind": "verify",
+          "label": "Verify"
+        },
+        {
+          "id": "verify_all",
+          "kind": "verify",
+          "label": "Verify"
+        },
+        {
+          "id": "priority",
+          "kind": "score",
+          "label": "Score"
+        },
+        {
+          "id": "rows",
+          "kind": "shape",
+          "label": "Deliver"
+        }
+      ],
+      "columns": [
+        {
+          "key": "company_name",
+          "label": "Company",
+          "type": "string",
+          "default_visible": true
+        },
+        {
+          "key": "company_domain",
+          "label": "Domain",
+          "type": "string",
+          "default_visible": true
+        },
+        {
+          "key": "industry",
+          "label": "Industry",
+          "type": "string",
+          "default_visible": true
+        },
+        {
+          "key": "employees",
+          "label": "Employees",
+          "type": "string",
+          "default_visible": true
+        },
+        {
+          "key": "headquarters",
+          "label": "Headquarters",
+          "type": "string",
+          "default_visible": false
+        },
+        {
+          "key": "job_title",
+          "label": "Job title",
+          "type": "string",
+          "default_visible": true
+        },
+        {
+          "key": "job_location",
+          "label": "Location",
+          "type": "string",
+          "default_visible": true
+        },
+        {
+          "key": "employment_type",
+          "label": "Employment type",
+          "type": "string",
+          "default_visible": true
+        },
+        {
+          "key": "posted_at",
+          "label": "Posted",
+          "type": "date",
+          "default_visible": true
+        },
+        {
+          "key": "days_open",
+          "label": "Days open",
+          "type": "integer",
+          "default_visible": false
+        },
+        {
+          "key": "job_url",
+          "label": "Job link",
+          "type": "url",
+          "default_visible": true
+        },
+        {
+          "key": "sources",
+          "label": "Boards",
+          "type": "list",
+          "default_visible": false
+        },
+        {
+          "key": "on_careers_page",
+          "label": "On their careers page",
+          "type": "boolean",
+          "default_visible": false
+        },
+        {
+          "key": "careers_page_roles",
+          "label": "Matching roles on their careers page",
+          "type": "integer",
+          "default_visible": false
+        },
+        {
+          "key": "open_roles",
+          "label": "Open roles",
+          "type": "integer",
+          "default_visible": true
+        },
+        {
+          "key": "no_agencies_flag",
+          "label": "Says no agencies",
+          "type": "boolean",
+          "default_visible": false
+        },
+        {
+          "key": "technologies",
+          "label": "Technologies",
+          "type": "list",
+          "default_visible": false
+        },
+        {
+          "key": "contact_name",
+          "label": "Contact",
+          "type": "string",
+          "default_visible": true
+        },
+        {
+          "key": "contact_title",
+          "label": "Contact title",
+          "type": "string",
+          "default_visible": true
+        },
+        {
+          "key": "contact_email",
+          "label": "Email",
+          "type": "email",
+          "default_visible": true
+        },
+        {
+          "key": "email_status",
+          "label": "Email status",
+          "type": "string",
+          "default_visible": true
+        },
+        {
+          "key": "contact_phone",
+          "label": "Phone",
+          "type": "string",
+          "default_visible": false
+        },
+        {
+          "key": "contact_profile_url",
+          "label": "Profile",
+          "type": "url",
+          "default_visible": false
+        },
+        {
+          "key": "score",
+          "label": "Score",
+          "type": "number",
+          "default_visible": true
+        }
+      ],
+      "company_view": {
+        "label": "One row per company",
+        "key": "company_domain",
+        "lists": [
+          "job_title",
+          "job_location",
+          "job_url",
+          "posted_at",
+          "sources",
+          "contact_name",
+          "contact_title",
+          "contact_email",
+          "email_status",
+          "contact_phone",
+          "contact_profile_url"
+        ]
+      },
+      "requirements": {
+        "scrapers": [
+          "careers.company",
+          "dice.jobs_search",
+          "google.jobs",
+          "indeed.company",
+          "indeed.job",
+          "indeed.jobs_search",
+          "irishjobs.search",
+          "linkedin.company",
+          "linkedin.job",
+          "linkedin.jobs_search",
+          "reed.jobs_search",
+          "seek.jobs_search",
+          "simplyhired.jobs_search",
+          "stepstone.jobs_search",
+          "totaljobs.jobs_search",
+          "web.contacts",
+          "web.dns",
+          "wellfound.jobs_search",
+          "xing.jobs_search",
+          "ycombinator.jobs"
+        ],
+        "capabilities": [
+          "people_search",
+          "contact_find",
+          "email_verify"
+        ],
+        "capabilities_connected": [],
+        "products": [
+          "scrapers"
+        ],
+        "missing": [],
+        "disabled_sources": [],
+        "not_offered": [
+          "google.jobs"
+        ]
+      },
+      "limits": {
+        "default_rows": 200,
+        "max_rows": 5000,
+        "default_unit_cap": 3000,
+        "max_unit_cap": 50000,
+        "min_unit_cap": 20,
+        "max_calls_per_step": 100
+      },
+      "sample_rows": [
+        {
+          "company_name": "Phoenix Regional Rehabilitation Hospital",
+          "company_domain": "ernesthealth.com",
+          "industry": "Hospitals and Health Care",
+          "employees": "51-200 employees",
+          "headquarters": "Phoenix, Arizona",
+          "job_title": "Registered Nurse",
+          "job_location": "Lubbock, TX",
+          "employment_type": null,
+          "posted_at": "2026-11-24",
+          "days_open": 0,
+          "job_url": "https://www.linkedin.com/jobs/view/registered-nurse-at-phoenix-regional-rehabilitation-hospital-4493987945",
+          "sources": [
+            "linkedin"
+          ],
+          "on_careers_page": true,
+          "careers_page_roles": 44,
+          "open_roles": 7,
+          "no_agencies_flag": false,
+          "technologies": [],
+          "contact_name": null,
+          "contact_title": null,
+          "contact_email": null,
+          "email_status": null,
+          "contact_phone": null,
+          "contact_profile_url": null,
+          "score": 65
+        },
+        {
+          "company_name": "Central Park Rehabilitation Hospital",
+          "company_domain": "ernesthealth.com",
+          "industry": "Hospitals and Health Care",
+          "employees": "51-200 employees",
+          "headquarters": "Phoenix, Arizona",
+          "job_title": "Registered Nurse",
+          "job_location": "Plano, TX",
+          "employment_type": "full_time",
+          "posted_at": "2026-11-24",
+          "days_open": 0,
+          "job_url": "https://www.linkedin.com/jobs/view/registered-nurse-at-central-park-rehabilitation-hospital-4494377901",
+          "sources": [
+            "linkedin"
+          ],
+          "on_careers_page": true,
+          "careers_page_roles": 44,
+          "open_roles": 7,
+          "no_agencies_flag": false,
+          "technologies": [],
+          "contact_name": null,
+          "contact_title": null,
+          "contact_email": null,
+          "email_status": null,
+          "contact_phone": null,
+          "contact_profile_url": null,
+          "score": 65
+        },
+        {
+          "company_name": "Ernest Health",
+          "company_domain": "ernesthealth.com",
+          "industry": "Hospitals and Health Care",
+          "employees": "51-200 employees",
+          "headquarters": "Phoenix, Arizona",
+          "job_title": "Dialysis Registered Nurse PRN",
+          "job_location": "Lubbock, TX 79415",
+          "employment_type": "full_time",
+          "posted_at": "2026-11-24",
+          "days_open": 0,
+          "job_url": "https://www.indeed.com/viewjob?jk=02acb31f46dc60cb",
+          "sources": [
+            "indeed"
+          ],
+          "on_careers_page": true,
+          "careers_page_roles": 44,
+          "open_roles": 7,
+          "no_agencies_flag": false,
+          "technologies": [],
+          "contact_name": null,
+          "contact_title": null,
+          "contact_email": null,
+          "email_status": null,
+          "contact_phone": null,
+          "contact_profile_url": null,
+          "score": 65
+        },
+        {
+          "company_name": "Ernest Health",
+          "company_domain": "ernesthealth.com",
+          "industry": "Hospitals and Health Care",
+          "employees": "51-200 employees",
+          "headquarters": "Phoenix, Arizona",
+          "job_title": "LPN / LVN - REMOTE - TELE CLINICAL INTERVENTION CENTER",
+          "job_location": "Mesquite, TX 75149",
+          "employment_type": "full_time",
+          "posted_at": "2026-11-24",
+          "days_open": 0,
+          "job_url": "https://www.indeed.com/viewjob?jk=f158ec8bd985e2f4",
+          "sources": [
+            "indeed"
+          ],
+          "on_careers_page": true,
+          "careers_page_roles": 44,
+          "open_roles": 7,
+          "no_agencies_flag": false,
+          "technologies": [],
+          "contact_name": null,
+          "contact_title": null,
+          "contact_email": null,
+          "email_status": null,
+          "contact_phone": null,
+          "contact_profile_url": null,
+          "score": 65
+        },
+        {
+          "company_name": "Las Palmas Medical Center",
+          "company_domain": "laspalmasdelsolhealthcare.com",
+          "industry": "Hospitals and Health Care",
+          "employees": "1,001-5,000 employees",
+          "headquarters": "El Paso, Texas",
+          "job_title": "Registered Nurse Medical Surgical Ortho",
+          "job_location": "El Paso, TX",
+          "employment_type": null,
+          "posted_at": "2026-11-24",
+          "days_open": 0,
+          "job_url": "https://www.linkedin.com/jobs/view/registered-nurse-medical-surgical-ortho-at-las-palmas-medical-center-4493985394",
+          "sources": [
+            "linkedin"
+          ],
+          "on_careers_page": false,
+          "careers_page_roles": 0,
+          "open_roles": 5,
+          "no_agencies_flag": false,
+          "technologies": [],
+          "contact_name": null,
+          "contact_title": null,
+          "contact_email": null,
+          "email_status": null,
+          "contact_phone": null,
+          "contact_profile_url": null,
+          "score": 50
+        },
+        {
+          "company_name": "Del Sol Medical Center",
+          "company_domain": "laspalmasdelsolhealthcare.com",
+          "industry": "Hospitals and Health Care",
+          "employees": "1,001-5,000 employees",
+          "headquarters": "El Paso, Texas",
+          "job_title": "Registered Nurse Rehab East",
+          "job_location": "El Paso, TX",
+          "employment_type": null,
+          "posted_at": "2026-11-24",
+          "days_open": 0,
+          "job_url": "https://www.linkedin.com/jobs/view/registered-nurse-rehab-east-at-del-sol-medical-center-4469829844",
+          "sources": [
+            "linkedin"
+          ],
+          "on_careers_page": false,
+          "careers_page_roles": 0,
+          "open_roles": 5,
+          "no_agencies_flag": false,
+          "technologies": [],
+          "contact_name": null,
+          "contact_title": null,
+          "contact_email": null,
+          "email_status": null,
+          "contact_phone": null,
+          "contact_profile_url": null,
+          "score": 50
+        },
+        {
+          "company_name": "Del Sol Medical Center",
+          "company_domain": "laspalmasdelsolhealthcare.com",
+          "industry": "Hospitals and Health Care",
+          "employees": "1,001-5,000 employees",
+          "headquarters": "El Paso, Texas",
+          "job_title": "Registered Nurse Progressive Care",
+          "job_location": "El Paso, TX",
+          "employment_type": null,
+          "posted_at": "2026-11-24",
+          "days_open": 0,
+          "job_url": "https://www.linkedin.com/jobs/view/registered-nurse-progressive-care-at-del-sol-medical-center-4451382525",
+          "sources": [
+            "linkedin"
+          ],
+          "on_careers_page": false,
+          "careers_page_roles": 0,
+          "open_roles": 5,
+          "no_agencies_flag": false,
+          "technologies": [],
+          "contact_name": null,
+          "contact_title": null,
+          "contact_email": null,
+          "email_status": null,
+          "contact_phone": null,
+          "contact_profile_url": null,
+          "score": 50
+        },
+        {
+          "company_name": "Las Palmas Del Sol Healthcare",
+          "company_domain": "laspalmasdelsolhealthcare.com",
+          "industry": "Hospitals and Health Care",
+          "employees": "1,001-5,000 employees",
+          "headquarters": "El Paso, Texas",
+          "job_title": "Registered Nurse Transitional Nursery PRN",
+          "job_location": "El Paso, TX 79902",
+          "employment_type": null,
+          "posted_at": "2026-11-24",
+          "days_open": 0,
+          "job_url": "https://www.indeed.com/viewjob?jk=d202a668ab2b80e4",
+          "sources": [
+            "indeed"
+          ],
+          "on_careers_page": false,
+          "careers_page_roles": 0,
+          "open_roles": 5,
+          "no_agencies_flag": false,
+          "technologies": [],
+          "contact_name": null,
+          "contact_title": null,
+          "contact_email": null,
+          "email_status": null,
+          "contact_phone": null,
+          "contact_profile_url": null,
+          "score": 50
+        },
+        {
+          "company_name": "Las Palmas Medical Center",
+          "company_domain": "laspalmasdelsolhealthcare.com",
+          "industry": "Hospitals and Health Care",
+          "employees": "1,001-5,000 employees",
+          "headquarters": "El Paso, Texas",
+          "job_title": "Registered Nurse Medical Surgical Oncology",
+          "job_location": "El Paso, TX",
+          "employment_type": null,
+          "posted_at": "2026-11-23",
+          "days_open": 1,
+          "job_url": "https://www.linkedin.com/jobs/view/registered-nurse-medical-surgical-oncology-at-las-palmas-medical-center-4478378391",
+          "sources": [
+            "linkedin"
+          ],
+          "on_careers_page": false,
+          "careers_page_roles": 0,
+          "open_roles": 5,
+          "no_agencies_flag": false,
+          "technologies": [],
+          "contact_name": null,
+          "contact_title": null,
+          "contact_email": null,
+          "email_status": null,
+          "contact_phone": null,
+          "contact_profile_url": null,
+          "score": 50
+        },
+        {
+          "company_name": "Driscoll Children's Hospital",
+          "company_domain": "driscollchildrens.org",
+          "industry": "Hospitals and Health Care",
+          "employees": "1,001-5,000 employees",
+          "headquarters": "Corpus Christi, Texas",
+          "job_title": "Outpatient RN - Evening Shift",
+          "job_location": "Corpus Christi, TX",
+          "employment_type": null,
+          "posted_at": "2026-11-24",
+          "days_open": 0,
+          "job_url": "https://www.linkedin.com/jobs/view/outpatient-rn-evening-shift-at-driscoll-children-s-hospital-4478586633",
+          "sources": [
+            "linkedin"
+          ],
+          "on_careers_page": false,
+          "careers_page_roles": 0,
+          "open_roles": 3,
+          "no_agencies_flag": false,
+          "technologies": [],
+          "contact_name": null,
+          "contact_title": null,
+          "contact_email": null,
+          "email_status": null,
+          "contact_phone": null,
+          "contact_profile_url": null,
+          "score": 50
+        },
+        {
+          "company_name": "Driscoll Children's Hospital",
+          "company_domain": "driscollchildrens.org",
+          "industry": "Hospitals and Health Care",
+          "employees": "1,001-5,000 employees",
+          "headquarters": "Corpus Christi, Texas",
+          "job_title": "Surgery RN OR RGV",
+          "job_location": "Edinburg, TX 78539",
+          "employment_type": "full_time",
+          "posted_at": "2026-11-23",
+          "days_open": 1,
+          "job_url": "https://www.indeed.com/viewjob?jk=dba66f86340e9a18",
+          "sources": [
+            "indeed"
+          ],
+          "on_careers_page": false,
+          "careers_page_roles": 0,
+          "open_roles": 3,
+          "no_agencies_flag": false,
+          "technologies": [],
+          "contact_name": null,
+          "contact_title": null,
+          "contact_email": null,
+          "email_status": null,
+          "contact_phone": null,
+          "contact_profile_url": null,
+          "score": 50
+        },
+        {
+          "company_name": "Driscoll Children's Hospital",
+          "company_domain": "driscollchildrens.org",
+          "industry": "Hospitals and Health Care",
+          "employees": "1,001-5,000 employees",
+          "headquarters": "Corpus Christi, Texas",
+          "job_title": "Occupational Health RN Valley",
+          "job_location": "Edinburg, TX 78539",
+          "employment_type": "full_time",
+          "posted_at": "2026-11-23",
+          "days_open": 1,
+          "job_url": "https://www.indeed.com/viewjob?jk=9b5a22b837b1533a",
+          "sources": [
+            "indeed"
+          ],
+          "on_careers_page": false,
+          "careers_page_roles": 0,
+          "open_roles": 3,
+          "no_agencies_flag": false,
+          "technologies": [],
+          "contact_name": null,
+          "contact_title": null,
+          "contact_email": null,
+          "email_status": null,
+          "contact_phone": null,
+          "contact_profile_url": null,
+          "score": 50
+        },
+        {
+          "company_name": "Dallas Regional Medical Center",
+          "company_domain": "dallasregionalmedicalcenter.com",
+          "industry": "Hospitals and Health Care",
+          "employees": "501-1,000 employees",
+          "headquarters": "Mesquite, Texas",
+          "job_title": "Registered Nurse ICU",
+          "job_location": "Mesquite, TX",
+          "employment_type": "full_time",
+          "posted_at": "2026-11-24",
+          "days_open": 0,
+          "job_url": "https://www.linkedin.com/jobs/view/registered-nurse-icu-at-dallas-regional-medical-center-4494180227",
+          "sources": [
+            "linkedin"
+          ],
+          "on_careers_page": true,
+          "careers_page_roles": 1100,
+          "open_roles": 2,
+          "no_agencies_flag": false,
+          "technologies": [],
+          "contact_name": null,
+          "contact_title": null,
+          "contact_email": null,
+          "email_status": null,
+          "contact_phone": null,
+          "contact_profile_url": null,
+          "score": 35
+        },
+        {
+          "company_name": "Dallas Regional Medical Center",
+          "company_domain": "dallasregionalmedicalcenter.com",
+          "industry": "Hospitals and Health Care",
+          "employees": "501-1,000 employees",
+          "headquarters": "Mesquite, Texas",
+          "job_title": "Registered Nurse Telemetry",
+          "job_location": "Mesquite, TX",
+          "employment_type": "full_time",
+          "posted_at": "2026-11-23",
+          "days_open": 1,
+          "job_url": "https://www.linkedin.com/jobs/view/registered-nurse-telemetry-at-dallas-regional-medical-center-4493942337",
+          "sources": [
+            "linkedin"
+          ],
+          "on_careers_page": true,
+          "careers_page_roles": 1100,
+          "open_roles": 2,
+          "no_agencies_flag": false,
+          "technologies": [],
+          "contact_name": null,
+          "contact_title": null,
+          "contact_email": null,
+          "email_status": null,
+          "contact_phone": null,
+          "contact_profile_url": null,
+          "score": 35
+        },
+        {
+          "company_name": "Lifepoint Health®",
+          "company_domain": "lifepointhealth.net",
+          "industry": "Hospitals and Health Care",
+          "employees": "1,001-5,000 employees",
+          "headquarters": "Brentwood, TN",
+          "job_title": "Registered Nurse (RN) Rehabilitation",
+          "job_location": "El Paso, TX",
+          "employment_type": null,
+          "posted_at": "2026-11-24",
+          "days_open": 0,
+          "job_url": "https://www.linkedin.com/jobs/view/registered-nurse-rn-rehabilitation-at-lifepoint-health%C2%AE-4494111368",
+          "sources": [
+            "linkedin"
+          ],
+          "on_careers_page": false,
+          "careers_page_roles": 0,
+          "open_roles": 2,
+          "no_agencies_flag": false,
+          "technologies": [],
+          "contact_name": null,
+          "contact_title": null,
+          "contact_email": null,
+          "email_status": null,
+          "contact_phone": null,
+          "contact_profile_url": null,
+          "score": 20
+        },
+        {
+          "company_name": "St. Josephs Medical Center",
+          "company_domain": null,
+          "industry": "Healthcare",
+          "employees": null,
+          "headquarters": null,
+          "job_title": "Registered Nurse - ICU/CCU",
+          "job_location": "Houston, TX 77002",
+          "employment_type": null,
+          "posted_at": "2026-11-24",
+          "days_open": 0,
+          "job_url": "https://www.indeed.com/viewjob?jk=fa3957633a915a5f",
+          "sources": [
+            "indeed"
+          ],
+          "on_careers_page": false,
+          "careers_page_roles": 0,
+          "open_roles": 2,
+          "no_agencies_flag": false,
+          "technologies": [],
+          "contact_name": null,
+          "contact_title": null,
+          "contact_email": null,
+          "email_status": null,
+          "contact_phone": null,
+          "contact_profile_url": null,
+          "score": 20
+        },
+        {
+          "company_name": "St. Josephs Medical Center",
+          "company_domain": null,
+          "industry": "Healthcare",
+          "employees": null,
+          "headquarters": null,
+          "job_title": "Registered Nurse - Adult Psych- Emergency Psych",
+          "job_location": "Houston, TX 77002",
+          "employment_type": "full_time",
+          "posted_at": "2026-11-24",
+          "days_open": 0,
+          "job_url": "https://www.indeed.com/viewjob?jk=21789e27b9892825",
+          "sources": [
+            "indeed"
+          ],
+          "on_careers_page": false,
+          "careers_page_roles": 0,
+          "open_roles": 2,
+          "no_agencies_flag": false,
+          "technologies": [],
+          "contact_name": null,
+          "contact_title": null,
+          "contact_email": null,
+          "email_status": null,
+          "contact_phone": null,
+          "contact_profile_url": null,
+          "score": 20
+        },
+        {
+          "company_name": "Legacy Rehabilitation and Living",
+          "company_domain": "legacyrehabandliving.com",
+          "industry": "Healthcare",
+          "employees": null,
+          "headquarters": "Legacy Rehabilitation & Living 4033 West 51st Avenue Amarillo, TX 79109-6129",
+          "job_title": "Registered Nurse",
+          "job_location": "Amarillo, TX 79109",
+          "employment_type": "full_time",
+          "posted_at": "2026-11-24",
+          "days_open": 0,
+          "job_url": "https://www.indeed.com/viewjob?jk=abfc220ff54d798f",
+          "sources": [
+            "indeed"
+          ],
+          "on_careers_page": false,
+          "careers_page_roles": 0,
+          "open_roles": 2,
+          "no_agencies_flag": false,
+          "technologies": [],
+          "contact_name": null,
+          "contact_title": null,
+          "contact_email": null,
+          "email_status": null,
+          "contact_phone": null,
+          "contact_profile_url": null,
+          "score": 20
+        },
+        {
+          "company_name": "Legacy Rehabilitation and Living",
+          "company_domain": "legacyrehabandliving.com",
+          "industry": "Healthcare",
+          "employees": null,
+          "headquarters": "Legacy Rehabilitation & Living 4033 West 51st Avenue Amarillo, TX 79109-6129",
+          "job_title": "Licensed Vocational Nurse",
+          "job_location": "Amarillo, TX 79109",
+          "employment_type": "full_time",
+          "posted_at": "2026-11-24",
+          "days_open": 0,
+          "job_url": "https://www.indeed.com/viewjob?jk=eb4fdcf5a5237451",
+          "sources": [
+            "indeed"
+          ],
+          "on_careers_page": false,
+          "careers_page_roles": 0,
+          "open_roles": 2,
+          "no_agencies_flag": false,
+          "technologies": [],
+          "contact_name": null,
+          "contact_title": null,
+          "contact_email": null,
+          "email_status": null,
+          "contact_phone": null,
+          "contact_profile_url": null,
+          "score": 20
+        },
+        {
+          "company_name": "BSA Health System",
+          "company_domain": "bsahs.org",
+          "industry": "Hospitals and Health Care",
+          "employees": "1,001-5,000 employees",
+          "headquarters": "Amarillo, TX",
+          "job_title": "Registered Nurse / RN OR",
+          "job_location": "Amarillo, TX",
+          "employment_type": null,
+          "posted_at": "2026-11-24",
+          "days_open": 0,
+          "job_url": "https://www.linkedin.com/jobs/view/registered-nurse-rn-or-at-bsa-health-system-4494107497",
+          "sources": [
+            "linkedin"
+          ],
+          "on_careers_page": true,
+          "careers_page_roles": 38,
+          "open_roles": 1,
+          "no_agencies_flag": false,
+          "technologies": [],
+          "contact_name": null,
+          "contact_title": null,
+          "contact_email": null,
+          "email_status": null,
+          "contact_phone": null,
+          "contact_profile_url": null,
+          "score": 35
+        }
+      ],
+      "sample_is_fixture": false,
+      "changelog": [
+        "1.0.0: first version.",
+        "1.1.0: Google Jobs, Seek, SimplyHired, Wellfound, XING, IrishJobs and Y Combinator's board; the careers pages of target companies; title synonyms; a company's own careers page checked for the role (+15); one row per company; the Tech startups and Hiring spike presets."
+      ]
+    }
+  }
+}

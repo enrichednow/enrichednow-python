@@ -15,15 +15,20 @@ from ._exceptions import (
     APIConnectionError,
     APIError,
     APITimeoutError,
+    AttestationRequiredError,
     AuthenticationError,
     EnrichedNowError,
+    FormulaUnavailableError,
     MissingAPIKeyError,
     NotFoundError,
     ConflictError,
     PermissionDeniedError,
+    PlanLimitReachedError,
     LimitReachedError,
     QuotaExceededError,
     RateLimitError,
+    RequirementMissingError,
+    SavedFormulaArchivedError,
     ServerError,
     ValidationError,
 )
@@ -139,6 +144,15 @@ def _retry_after(response: httpx.Response) -> Optional[float]:
     return max(0.0, when.timestamp() - time.time())
 
 
+_CONFLICTS: Dict[str, Type[ConflictError]] = {
+    "attestation_required": AttestationRequiredError,
+    "formula_unavailable": FormulaUnavailableError,
+    "requirement_missing": RequirementMissingError,
+    "saved_formula_archived": SavedFormulaArchivedError,
+}
+"""The 409s that have an error of their own; any other 409 (`idempotency_conflict`) is a `ConflictError`."""
+
+
 def error_from_response(response: httpx.Response) -> APIError:
     """The typed error for an answer of 4xx or 5xx. The API's errors are `{"error": {"code", "message", "details"}}`."""
     body: Any
@@ -167,11 +181,11 @@ def error_from_response(response: httpx.Response) -> APIError:
     if status == 401:
         return AuthenticationError(text, **common)
     if status == 403:
-        return PermissionDeniedError(text, **common)
+        return (PlanLimitReachedError if code == "plan_limit_reached" else PermissionDeniedError)(text, **common)
     if status == 404:
         return NotFoundError(text, **common)
     if status == 409:
-        return ConflictError(text, **common)
+        return _CONFLICTS.get(code or "", ConflictError)(text, **common)
     if status == 429:
         return RateLimitError(text, retry_after=_retry_after(response), **common)
     if status == 402:

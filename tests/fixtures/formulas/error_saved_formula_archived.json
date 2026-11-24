@@ -1,0 +1,22 @@
+{
+  "request": {
+    "method": "PATCH",
+    "path": "/v1/saved-formulas/sf_000000000000000000000002",
+    "body": {
+      "notify": "none"
+    }
+  },
+  "response": {
+    "status": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "error": {
+        "code": "saved_formula_archived",
+        "message": "This saved formula is archived and cannot be changed. Duplicate it to use it again.",
+        "details": {}
+      }
+    }
+  }
+}

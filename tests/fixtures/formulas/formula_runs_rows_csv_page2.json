@@ -1,0 +1,26 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/v1/formula-runs/frun_000000000000000000000002/rows",
+    "query": {
+      "format": "csv",
+      "limit": "2",
+      "cursor": "Mg"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/csv; charset=utf-8",
+      "content-disposition": "attachment; filename=\"frun_000000000000000000000002.csv\"",
+      "x-units-limit": "1000",
+      "x-units-used": "41",
+      "x-units-remaining": "959",
+      "x-units-topup": "0",
+      "x-units-reset": "2026-11-25T09:04:30Z",
+      "x-ratelimit-limit": "2",
+      "x-ratelimit-remaining": "2"
+    },
+    "text": "company_name,company_domain,industry,employees,headquarters,job_title,job_location,employment_type,posted_at,days_open,job_url,sources,on_careers_page,careers_page_roles,open_roles,no_agencies_flag,technologies,contact_name,contact_title,contact_email,email_status,contact_phone,contact_profile_url,score\r\nNorthwind Ltd,northwind-demo.com,Software Development,51-200 employees,London,Java Developer,\"London, UK\",full_time,2026-11-24,0,https://www.linkedin.com/jobs/view/java-developer-at-acme-4487824401,\"[\"\"linkedin\"\",\"\"indeed\"\"]\",false,0,1,false,\"[\"\"Java\"\",\"\"AWS\"\"]\",,,careers@northwind-demo.com,risky,,,20\r\nQuiet Agencies Ltd,quiet-demo.com,Software Development,11-50 employees,London,Java Tester,\"London, UK\",full_time,2026-11-24,0,https://www.linkedin.com/jobs/view/java-developer-at-acme-4487824408,\"[\"\"linkedin\"\"]\",false,0,1,true,\"[\"\"Java\"\"]\",,,careers@quiet-demo.com,risky,,,0\r\n"
+  }
+}

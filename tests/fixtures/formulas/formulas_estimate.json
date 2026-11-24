@@ -1,0 +1,49 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/v1/formulas/job-order-hunter/estimate",
+    "body": {
+      "params": {
+        "job_titles": [
+          "Java Developer"
+        ],
+        "locations": [
+          "London"
+        ],
+        "posted_within_days": 2,
+        "title_exclude_keywords": [
+          "intern"
+        ],
+        "exclude_companies": [
+          "Blocked By Us Inc"
+        ],
+        "company_size": {
+          "min": 11,
+          "max": 5000
+        }
+      },
+      "unit_cap": 2000
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "valid": true,
+      "errors": [],
+      "estimate": {
+        "min_units": 1,
+        "expected_units": 63,
+        "max_units": 1425,
+        "expected_rows": 1,
+        "basis": "2 searches across 2 sources, about 1 row"
+      },
+      "missing": [],
+      "not_offered": [
+        "google.jobs"
+      ]
+    }
+  }
+}

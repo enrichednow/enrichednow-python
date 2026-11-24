@@ -7,25 +7,32 @@
     ├── APIError                      the API answered with an error
     │   ├── AuthenticationError       401
     │   │   └── PermissionDeniedError 403
-    │   ├── NotFoundError             404
+    │   │       └── PlanLimitReachedError       403 `plan_limit_reached`: the plan allows no more of this
+    │   ├── NotFoundError             404 (also `formula_not_found`)
     │   ├── ConflictError             409
+    │   │   ├── AttestationRequiredError        409 `attestation_required`: the formula's terms are not accepted
+    │   │   ├── FormulaUnavailableError         409 `formula_unavailable`: the formula cannot be run now
+    │   │   ├── RequirementMissingError         409 `requirement_missing`: it needs something the account lacks
+    │   │   └── SavedFormulaArchivedError       409 `saved_formula_archived`
     │   ├── RateLimitError            429
-    │   ├── ValidationError           any other 4xx (422 `invalid_input`)
+    │   ├── ValidationError           any other 4xx (422 `invalid_input`, `unit_cap_too_low`)
     │   │   └── QuotaExceededError    402 `quota_exceeded`
-    │   │       └── LimitReachedError 402 `limit_reached`: a spend limit of the account's own, or of the key
+    │   │       └── LimitReachedError 402 `limit_reached`: a spend limit of the account's own, of the key, or of a
+    │   │                                 saved formula
     │   └── ServerError               5xx
     ├── RunFailedError                a run ended failed, unsupported or cancelled
+    │   └── FormulaRunFailedError     a formula run did
     ├── WaitTimeoutError              a run did not end within the time given
     └── WebhookVerificationError      a webhook request is not one this API signed
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Union
 
 import httpx
 
 if TYPE_CHECKING:
-    from ._models import Run
+    from ._models import FormulaRun, Run
 
 __all__ = [
     "EnrichedNowError",
@@ -45,6 +52,12 @@ __all__ = [
     "RunFailedError",
     "WaitTimeoutError",
     "WebhookVerificationError",
+    "PlanLimitReachedError",
+    "AttestationRequiredError",
+    "FormulaUnavailableError",
+    "RequirementMissingError",
+    "SavedFormulaArchivedError",
+    "FormulaRunFailedError",
 ]
 
 
@@ -123,13 +136,98 @@ class PermissionDeniedError(AuthenticationError):
     """403: the key is valid but this is not allowed for the account. `reason` says why when the API does."""
 
 
+class PlanLimitReachedError(PermissionDeniedError):
+    """403 `plan_limit_reached`: the account's plan allows no more of this. `limit` says which: `schedules` (saved
+    formulas with an active schedule at once), `min_interval_minutes` (the shortest cadence) or `destinations`;
+    `allowed` is what the plan allows. Pause another schedule, choose a longer cadence, or change the plan."""
+
+    @property
+    def limit(self) -> Optional[str]:
+        value = self.details.get("limit")
+        return value if isinstance(value, str) else None
+
+    @property
+    def allowed(self) -> Optional[int]:
+        value = self.details.get("allowed")
+        return value if isinstance(value, int) else None
+
+    @property
+    def current(self) -> Optional[int]:
+        """How many there are now (for `schedules` and `destinations`)."""
+        value = self.details.get("current")
+        return value if isinstance(value, int) else None
+
+    @property
+    def asked(self) -> Optional[int]:
+        """The interval asked for, in minutes (for `min_interval_minutes`)."""
+        value = self.details.get("asked")
+        return value if isinstance(value, int) else None
+
+
 class NotFoundError(APIError):
-    """404: there is no such scraper, run, posting or company."""
+    """404: there is no such scraper, run, posting, company, formula (`formula_not_found`) or saved formula."""
 
 
 class ConflictError(APIError):
-    """409 `idempotency_conflict`: the idempotency key was already used, in the last 24 hours, for a different
-    request. `details["run_id"]` is the run that key started."""
+    """409. `idempotency_conflict`: the idempotency key was already used, in the last 24 hours, for a different
+    request; `details["run_id"]` is the run that key started. The formula conflicts are subclasses of this one."""
+
+
+class AttestationRequiredError(ConflictError):
+    """409 `attestation_required`: the formula returns people's contact details, and an owner or an admin of the
+    account must first accept its terms, in the console. Nothing was started or charged.
+    `client.attestations.list()` shows the terms and whether they are accepted."""
+
+    @property
+    def kind(self) -> Optional[str]:
+        """The terms needed: `personal_data`."""
+        value = self.details.get("kind")
+        return value if isinstance(value, str) else None
+
+    @property
+    def text_version(self) -> Optional[str]:
+        value = self.details.get("text_version")
+        return value if isinstance(value, str) else None
+
+
+class FormulaUnavailableError(ConflictError):
+    """409 `formula_unavailable`: the formula cannot be run now: it is deprecated (`formula_status`), formulas are
+    off for the moment, or a saved formula's version is no longer offered (`formula_id`, `major`)."""
+
+    @property
+    def formula_status(self) -> Optional[str]:
+        value = self.details.get("status")
+        return value if isinstance(value, str) else None
+
+    @property
+    def formula_id(self) -> Optional[str]:
+        value = self.details.get("formula_id")
+        return value if isinstance(value, str) else None
+
+    @property
+    def major(self) -> Optional[int]:
+        value = self.details.get("major")
+        return value if isinstance(value, int) else None
+
+
+class RequirementMissingError(ConflictError):
+    """409 `requirement_missing`: the formula needs something this account or the service does not have. `missing`
+    names each: a product (`product:data`) or a source that is not offered."""
+
+    @property
+    def missing(self) -> List[str]:
+        value = self.details.get("missing")
+        return [str(item) for item in value] if isinstance(value, list) else []
+
+
+class SavedFormulaArchivedError(ConflictError):
+    """409 `saved_formula_archived`: the saved formula is archived and cannot run or change. Duplicate it to use it
+    again."""
+
+    @property
+    def saved_formula_id(self) -> Optional[str]:
+        value = self.details.get("saved_formula_id")
+        return value if isinstance(value, str) else None
 
 
 class RateLimitError(APIError):
@@ -151,7 +249,8 @@ class RateLimitError(APIError):
 
 
 class ValidationError(APIError):
-    """The request does not fit (422 `invalid_input`, or any other 4xx). `fields` lists what is wrong."""
+    """The request does not fit (422 `invalid_input`, or any other 4xx). `fields` lists what is wrong. A formula's
+    unit cap below the least it can do anything with is `unit_cap_too_low`, with `min_unit_cap`."""
 
     @property
     def fields(self) -> List[Dict[str, str]]:
@@ -160,6 +259,12 @@ class ValidationError(APIError):
         if not isinstance(fields, list):
             return []
         return [dict(item) for item in fields if isinstance(item, Mapping)]
+
+    @property
+    def min_unit_cap(self) -> Optional[int]:
+        """For `unit_cap_too_low`: the least unit cap the formula takes."""
+        value = self.details.get("min_unit_cap")
+        return value if isinstance(value, int) else None
 
 
 class QuotaExceededError(ValidationError):
@@ -189,14 +294,14 @@ class QuotaExceededError(ValidationError):
 
 
 class LimitReachedError(QuotaExceededError):
-    """402 `limit_reached`: the run would go past a spend limit the account set itself: its monthly limit (`scope`
-    `"account"`) or the API key's (`scope` `"key"`, with `key_id`). Units may be left on the plan: raising the limit,
-    in the console, is what helps. Nothing was created or charged. A `QuotaExceededError`, so code that catches that
-    one catches this too."""
+    """402 `limit_reached`: the run would go past a spend limit set on purpose: the account's monthly limit (`scope`
+    `"account"`), the API key's (`scope` `"key"`, with `key_id`), or a saved formula's monthly cap (`scope`
+    `"saved_formula"`, with `saved_formula_id`). Units may be left on the plan: raising the limit is what helps.
+    Nothing was created or charged. A `QuotaExceededError`, so code that catches that one catches this too."""
 
     @property
     def scope(self) -> Optional[str]:
-        """`"account"` or `"key"`: whose limit was reached."""
+        """`"account"`, `"key"`, `"saved_formula"` or `"formula_run"`: whose limit was reached."""
         value = self.details.get("scope")
         return value if isinstance(value, str) else None
 
@@ -204,6 +309,12 @@ class LimitReachedError(QuotaExceededError):
     def key_id(self) -> Optional[str]:
         """The API key whose limit was reached, when `scope` is `"key"`."""
         value = self.details.get("key_id")
+        return value if isinstance(value, str) else None
+
+    @property
+    def saved_formula_id(self) -> Optional[str]:
+        """The saved formula whose monthly cap was reached, when `scope` is `"saved_formula"`."""
+        value = self.details.get("saved_formula_id")
         return value if isinstance(value, str) else None
 
     @property
@@ -220,6 +331,8 @@ class ServerError(APIError):
 class RunFailedError(EnrichedNowError):
     """A run ended `failed`, `unsupported` or `cancelled`. The request itself was fine; the run is on `run`."""
 
+    run: Any
+
     def __init__(self, run: "Run") -> None:
         self.run = run
         self.run_id = run.id
@@ -232,10 +345,29 @@ class RunFailedError(EnrichedNowError):
         super().__init__(self.message)
 
 
-class WaitTimeoutError(EnrichedNowError):
-    """A run was still `queued` or `running` when the time given to wait ran out. The run carries on; it is on `run`."""
+class FormulaRunFailedError(RunFailedError):
+    """A formula run ended `failed`, `unsupported` or `cancelled`: `client.run_formula()` raises it. The run is on
+    `run`; a `RunFailedError`, so code that catches that one catches this too."""
 
-    def __init__(self, run: "Run", timeout: float) -> None:
+    run: "FormulaRun"
+
+    def __init__(self, run: "FormulaRun") -> None:
+        self.run = run
+        self.run_id = run.id
+        self.status = run.status
+        self.reason = run.reason
+        text = f"Formula run {run.id} of {run.formula_id} ended {run.status}"
+        if run.reason:
+            text += f" ({run.reason})"
+        self.message = text + "."
+        EnrichedNowError.__init__(self, self.message)
+
+
+class WaitTimeoutError(EnrichedNowError):
+    """A run was still `queued` or `running` when the time given to wait ran out. The run carries on; it is on `run`
+    (a `Run`, or a `FormulaRun` when it was a formula run)."""
+
+    def __init__(self, run: "Union[Run, FormulaRun]", timeout: float) -> None:
         self.run = run
         self.run_id = run.id
         self.status = run.status

@@ -1,0 +1,31 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/v1/suppressions",
+    "body": {
+      "entries": [
+        {
+          "kind": "domain",
+          "value": "https://www.globex.example/"
+        },
+        {
+          "kind": "email",
+          "value": "Ana@Initech.example"
+        },
+        {
+          "kind": "company_name",
+          "value": "Umbrella, Inc."
+        }
+      ]
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "added": 3
+    }
+  }
+}

@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/enrichednow/enrichednow-python/actions/workflows/ci.yml/badge.svg)](https://github.com/enrichednow/enrichednow-python/actions/workflows/ci.yml)
 
-The official Python library for the [EnrichedNow API](https://docs.enrichednow.com): run scrapers, read their records,
+The official Python library for the [EnrichedNow API](https://docs.enrichednow.com): run scrapers and formulas, read their records and rows,
 and query the job-postings datasets.
 
 - Sync and async clients with the same surface
@@ -186,6 +186,136 @@ try:
 except RunFailedError as error:
     print(error.status, error.reason, error.run.id)
 ```
+
+## Formulas
+
+A formula is a ready-made workflow: answer a few questions, get back a finished, deduplicated list of rows (companies
+hiring for your roles, local businesses with their contact pages, accounts flagged as hiring, …). A run of one never
+spends more than its unit cap, and counts as one run in progress whatever it does inside.
+
+```python
+from enrichednow import EnrichedNow
+from enrichednow.formula_params import JobOrderHunterParams
+
+client = EnrichedNow()
+
+params: JobOrderHunterParams = {"job_titles": ["Java Developer"], "locations": ["London"]}
+result = client.run_formula("job-order-hunter", params, unit_cap=2000)
+
+print(result.run.status, result.run.rows_total, result.run.units_spent)
+for row in result:                     # every row, best first; pages are fetched as you go
+    print(row.score, row.data["company_name"], row.data["job_title"])
+```
+
+`run_formula` starts the run, waits for it to end and returns it with its rows, as `scrape` does for a scraper. A run
+that ends `partial` is returned (it has rows; `result.run.reasons` says what is missing, such as contact columns left
+empty until a provider is connected); one that ends `failed`, `unsupported` or `cancelled` raises
+`FormulaRunFailedError` unless `raise_on_failure=False`.
+
+`enrichednow.formula_params` has each formula's parameters as a `TypedDict`, so a type checker and your editor know
+its keys, values and defaults. A plain `dict` works for any formula, including one added after this version of the
+library.
+
+### The catalogue, and what a run would cost
+
+```python
+for formula in client.formulas.list(query="companies hiring Java developers in London"):   # best first
+    print(formula.id, formula.title, formula.available)
+
+formula = client.formulas.get("job-order-hunter")                # its parameters' JSON Schema, presets, columns, samples
+answer = client.formulas.estimate("job-order-hunter", params, unit_cap=2000)   # free
+if answer.valid:
+    print(answer.estimate.expected_units, answer.estimate.max_units)
+else:
+    print(answer.errors)                                          # [FieldProblem(path="params.job_titles", ...)]
+```
+
+Both the catalogue and estimates are free. Parameters that cannot run are not an error for `estimate`: `valid` is
+false and `errors` says what to change.
+
+### Runs and their rows
+
+```python
+run = client.formulas.run("job-order-hunter", params, preview=True)   # at most 10 rows and 50 units
+run = client.formula_runs.wait(run.id)                                  # however it ended
+for row in client.formula_runs.rows(run.id, fields=["company_name", "contact_email"], min_score=50):
+    print(row.data)
+for company in client.formula_runs.rows(run.id, view="company"):        # one row per company
+    print(company.data["company_name"], company.data["job_title"])     # a list: one for each of its rows
+client.formula_runs.cancel(run.id)
+```
+
+`formulas.run` takes `unit_cap` (the most it may spend: it stops there and ends `partial`), `row_cap`, `wait` (0 to
+300 seconds held by the API) and `idempotency_key`; like a scraper run it always carries an `Idempotency-Key`, so a
+retry never starts a second run. Each look `formula_runs.wait` takes asks the API to hold the request for up to a
+minute, so a run is seen the moment it ends. Rows are kept 90 days.
+
+As a file, written by the API (a CSV has the formula's columns in its order, and its header row once):
+
+```python
+result.download("java-london.csv")                                   # or .ndjson
+with open("rows.csv", "wb") as out:
+    for chunk in client.formula_runs.export_all(run.id, "csv", view="company"):
+        out.write(chunk)
+```
+
+### Saved formulas
+
+A saved formula keeps a formula with its parameters under a name, to run again by hand or on a schedule. Its runs
+deliver only rows it has not delivered before, so its rows since a time are exactly what is new.
+
+```python
+saved = client.saved_formulas.create(
+    "job-order-hunter", params,
+    schedule={"cadence": "weekdays", "local_time": "07:30", "timezone": "Europe/London"},
+    notify="digest",                     # "each_run" (the default), "digest" or "none": mail when a run finds new rows
+    monthly_unit_cap=20000,
+)
+
+since = datetime.now(timezone.utc) - timedelta(days=1)
+for row in client.saved_formulas.rows(saved.id, since=since):     # what a daily job polls: what is new
+    print(row.data)
+
+client.saved_formulas.run(saved.id, wait=60)          # now, by hand; include_seen=True delivers old rows too
+client.saved_formulas.update(saved.id, schedule=None) # None removes the schedule (and the monthly cap; or name=None
+                                                       # goes back to a name made from the parameters)
+client.saved_formulas.pause(saved.id)
+client.saved_formulas.resume(saved.id)
+client.saved_formulas.reset_seen(saved.id)            # owners and admins: deliver everything again
+copy = client.saved_formulas.duplicate(saved.id, copy_seen=True)
+client.saved_formulas.archive(saved.id)
+client.saved_formulas.limits()                        # schedules the plan allows, the shortest cadence, …
+client.saved_formulas.snapshots(saved.id, entity_key="https://shop.example/item/1")   # a watch formula's history
+```
+
+Cadences are `hourly`, `daily`, `weekdays`, `weekly` (`day_of_week`, 0 is Monday) and `monthly` (`day_of_month`),
+as the formula and the plan allow (`formula.schedules`, `client.saved_formulas.limits()`).
+
+### The suppression list
+
+Companies (by domain or by name) and addresses that every formula run leaves out, before any paid step, and never
+sends anywhere:
+
+```python
+client.suppressions.add([("domain", "existing-client.example"), ("email", "someone@example.com"),
+                         ("company_name", "Initech, Inc.")])
+client.suppressions.upload(pathlib.Path("do-not-contact.csv"))   # bytes, text or a binary file work too
+for entry in client.suppressions.list(kind="domain"):
+    print(entry.value)
+client.suppressions.delete("domain", "existing-client.example")
+```
+
+### Row feedback, and the terms
+
+```python
+client.formula_rows.feedback(row.id, "wrong_company", correct_domain="the-real-company.example")
+for terms in client.attestations.list():
+    print(terms.kind, terms.accepted)
+```
+
+`wrong_company` also corrects the match for the account's later runs. A formula that returns people
+(`formula.needs_attestation`) runs once an owner or an admin has accepted its terms in the console; until then
+starting it raises `AttestationRequiredError`.
 
 ## Webhooks
 
@@ -378,13 +508,20 @@ EnrichedNowError
 ├── APIError                        the API answered with an error
 │   ├── AuthenticationError         401 unauthorized
 │   │   └── PermissionDeniedError   403 forbidden
-│   ├── NotFoundError               404 not_found
+│   │       └── PlanLimitReachedError       403 plan_limit_reached: the plan allows no more schedules, or not this cadence
+│   ├── NotFoundError               404 not_found, formula_not_found
+│   ├── ConflictError               409 idempotency_conflict
+│   │   ├── AttestationRequiredError        409 attestation_required: the formula's terms are not accepted yet
+│   │   ├── FormulaUnavailableError         409 formula_unavailable: the formula cannot be run now
+│   │   ├── RequirementMissingError         409 requirement_missing: it needs something the account lacks (.missing)
+│   │   └── SavedFormulaArchivedError       409 saved_formula_archived: duplicate it to use it again
 │   ├── RateLimitError              429 too_many_runs, rate_limited
-│   ├── ValidationError             422 invalid_input, and any other 4xx
+│   ├── ValidationError             422 invalid_input, unit_cap_too_low (.min_unit_cap), and any other 4xx
 │   │   └── QuotaExceededError      402 quota_exceeded
-│   │       └── LimitReachedError   402 limit_reached: the account's or the key's own spend limit
+│   │       └── LimitReachedError   402 limit_reached: the account's, the key's or a saved formula's own spend limit
 │   └── ServerError                 5xx internal, data_unavailable
 ├── RunFailedError                  a run ended failed, unsupported or cancelled
+│   └── FormulaRunFailedError       a formula run did (run_formula)
 ├── WaitTimeoutError                a run did not end within the time given
 └── WebhookVerificationError        a webhook request did not verify (parse_webhook)
 ```

@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import time
+from pathlib import Path
 from types import TracebackType
-from typing import Any, Awaitable, Callable, Dict, Iterator, Mapping, Optional, Type
+from typing import Any, AsyncIterator, Awaitable, Callable, Dict, Iterator, Mapping, Optional, Type, Union, cast
 
 import httpx
 
@@ -23,8 +25,27 @@ from ._base import (
     parse_json,
 )
 from ._exceptions import EnrichedNowError
-from ._models import Health, Run
-from ._pagination import AsyncPaginator, AsyncRecordsPage, SyncRecordsPage
+from ._formulas import (
+    ROWS_PAGE,
+    AsyncAttestations,
+    AsyncFormulaRows,
+    AsyncFormulaRuns,
+    AsyncFormulas,
+    AsyncSavedFormulas,
+    AsyncSuppressions,
+    Attestations,
+    Fields,
+    FormulaRows,
+    FormulaRuns,
+    Formulas,
+    Params,
+    RowFormat,
+    RowView,
+    SavedFormulas,
+    Suppressions,
+)
+from ._models import FormulaRow, FormulaRun, Health, Run
+from ._pagination import AsyncPage, AsyncPaginator, AsyncRecordsPage, SyncPage, SyncRecordsPage
 from ._resources import (
     AsyncData,
     AsyncRuns,
@@ -38,7 +59,18 @@ from ._resources import (
     Webhooks,
 )
 
-__all__ = ["EnrichedNow", "AsyncEnrichedNow", "ScrapeResult", "AsyncScrapeResult"]
+__all__ = ["EnrichedNow", "AsyncEnrichedNow", "ScrapeResult", "AsyncScrapeResult", "FormulaResult", "AsyncFormulaResult"]
+
+_SUFFIXES = {".csv": "csv", ".ndjson": "ndjson", ".jsonl": "ndjson"}
+
+
+def _download_format(path: "Union[str, os.PathLike[str]]", format: Optional[RowFormat]) -> RowFormat:
+    if format is not None:
+        return format
+    found = _SUFFIXES.get(Path(path).suffix.lower())
+    if found is None:
+        raise ValueError("give format='csv' or 'ndjson': the file's name does not say which")
+    return cast(RowFormat, found)
 
 
 class ScrapeResult:
@@ -85,6 +117,77 @@ class AsyncScrapeResult:
         return f"AsyncScrapeResult(run={self.run.id!r}, status={self.run.status!r}, record_count={self.run.record_count!r})"
 
 
+class FormulaResult:
+    """What `client.run_formula()` returns: the run as it ended, and its rows.
+
+    Iterating the result walks every row, best first, fetched a page at a time; `rows()` narrows them, `export()` and
+    `download()` write the whole run as one CSV or NDJSON file.
+    """
+
+    def __init__(self, client: "EnrichedNow", run: FormulaRun) -> None:
+        self._client = client
+        self.run = run
+
+    def rows(self, *, fields: Optional[Fields] = None, min_score: Optional[float] = None, view: Optional[RowView] = None,
+             limit: int = ROWS_PAGE) -> SyncPage[FormulaRow]:
+        """The run's rows: iterate for all of them. `fields` keeps those columns, `min_score` the rows scored at least
+        that, and `view="company"` gives one row per company (for a formula with a `company_view`)."""
+        return self._client.formula_runs.rows(self.run.id, fields=fields, min_score=min_score, view=view, limit=limit)
+
+    def __iter__(self) -> Iterator[FormulaRow]:
+        return iter(self.rows())
+
+    def export(self, format: RowFormat = "csv", *, fields: Optional[Fields] = None, min_score: Optional[float] = None,
+               view: Optional[RowView] = None) -> Iterator[bytes]:
+        """The whole run as `csv` or `ndjson`, written by the API, a page at a time: the pieces make one file."""
+        return self._client.formula_runs.export_all(self.run.id, format, fields=fields, min_score=min_score, view=view)
+
+    def download(self, path: "Union[str, os.PathLike[str]]", format: Optional[RowFormat] = None, *, fields: Optional[Fields] = None,
+                 min_score: Optional[float] = None, view: Optional[RowView] = None) -> Path:
+        """Write the whole run to `path`, as `csv` or `ndjson` (by default, as the file's name says), and return it."""
+        chosen = _download_format(path, format)
+        with open(path, "wb") as out:
+            for chunk in self.export(chosen, fields=fields, min_score=min_score, view=view):
+                out.write(chunk)
+        return Path(path)
+
+    def __repr__(self) -> str:
+        return f"FormulaResult(run={self.run.id!r}, status={self.run.status!r}, rows_total={self.run.rows_total!r})"
+
+
+class AsyncFormulaResult:
+    """What `await client.run_formula()` returns: the run as it ended, and its rows (`async for row in result`)."""
+
+    def __init__(self, client: "AsyncEnrichedNow", run: FormulaRun) -> None:
+        self._client = client
+        self.run = run
+
+    def rows(self, *, fields: Optional[Fields] = None, min_score: Optional[float] = None, view: Optional[RowView] = None,
+             limit: int = ROWS_PAGE) -> AsyncPaginator[FormulaRow, AsyncPage[FormulaRow]]:
+        """The run's rows: `async for` over all of them, or await it for the first page; see `FormulaResult.rows`."""
+        return self._client.formula_runs.rows(self.run.id, fields=fields, min_score=min_score, view=view, limit=limit)
+
+    def __aiter__(self) -> AsyncIterator[FormulaRow]:
+        return self.rows().__aiter__()
+
+    def export(self, format: RowFormat = "csv", *, fields: Optional[Fields] = None, min_score: Optional[float] = None,
+               view: Optional[RowView] = None) -> AsyncIterator[bytes]:
+        """The whole run as `csv` or `ndjson`, a page at a time (`async for`)."""
+        return self._client.formula_runs.export_all(self.run.id, format, fields=fields, min_score=min_score, view=view)
+
+    async def download(self, path: "Union[str, os.PathLike[str]]", format: Optional[RowFormat] = None, *,
+                       fields: Optional[Fields] = None, min_score: Optional[float] = None, view: Optional[RowView] = None) -> Path:
+        """Write the whole run to `path`, as `csv` or `ndjson` (by default, as the file's name says), and return it."""
+        chosen = _download_format(path, format)
+        with open(path, "wb") as out:
+            async for chunk in self.export(chosen, fields=fields, min_score=min_score, view=view):
+                out.write(chunk)
+        return Path(path)
+
+    def __repr__(self) -> str:
+        return f"AsyncFormulaResult(run={self.run.id!r}, status={self.run.status!r}, rows_total={self.run.rows_total!r})"
+
+
 def _server_wait(timeout: Optional[float]) -> float:
     return SCRAPE_SERVER_WAIT if timeout is None else max(0.0, min(SCRAPE_SERVER_WAIT, float(timeout)))
 
@@ -120,6 +223,12 @@ class EnrichedNow(BaseClient):
         self.usage = UsageResource(self)
         self.data = Data(self)
         self.webhooks = Webhooks(self)
+        self.formulas = Formulas(self)
+        self.formula_runs = FormulaRuns(self)
+        self.saved_formulas = SavedFormulas(self)
+        self.suppressions = Suppressions(self)
+        self.attestations = Attestations(self)
+        self.formula_rows = FormulaRows(self)
 
     # --- transport ------------------------------------------------------------------------------------------------
 
@@ -130,12 +239,13 @@ class EnrichedNow(BaseClient):
         *,
         params: Optional[Mapping[str, Any]] = None,
         json: Any = None,
+        content: Optional[bytes] = None,
         idempotent: bool = True,
         timeout: Any = USE_CLIENT_TIMEOUT,
         headers: Optional[Mapping[str, str]] = None,
         raw: bool = False,
     ) -> Any:
-        """The answer's JSON (`raw`: the answer itself, for a body that is not JSON)."""
+        """The answer's JSON (`raw`: the answer itself, for a body that is not JSON). `content` is a body sent as it is."""
         headers = {**self._headers, **headers} if headers else self._headers
         attempt = 0
         while True:
@@ -146,6 +256,7 @@ class EnrichedNow(BaseClient):
                     self._url(path),
                     params=clean_params(params),
                     json=json,
+                    content=content,
                     headers=headers,
                     timeout=self.timeout if timeout is USE_CLIENT_TIMEOUT else timeout,
                 )
@@ -212,6 +323,40 @@ class EnrichedNow(BaseClient):
             run.raise_for_status()
         return ScrapeResult(self, run)
 
+    def run_formula(
+        self,
+        formula_id: str,
+        params: Optional[Params] = None,
+        *,
+        preview: bool = False,
+        unit_cap: Optional[int] = None,
+        row_cap: Optional[int] = None,
+        timeout: Optional[float] = DEFAULT_RUN_TIMEOUT,
+        poll_interval: float = DEFAULT_POLL_INTERVAL,
+        raise_on_failure: bool = True,
+        idempotency_key: Optional[str] = None,
+    ) -> FormulaResult:
+        """Run a formula, wait for it to end, and return it with its rows.
+
+            result = client.run_formula("job-order-hunter", {"job_titles": ["Java Developer"], "locations": ["London"]})
+            for row in result:
+                print(row.data["company_name"], row.data["job_title"])
+
+        `params`, `preview`, `unit_cap`, `row_cap` and `idempotency_key` are those of `client.formulas.run`. Raises
+        `FormulaRunFailedError` when the run ends `failed`, `unsupported` or `cancelled` (pass `raise_on_failure=False`
+        to get the result instead), and `WaitTimeoutError` when it has not ended after `timeout` seconds (`None`: wait
+        as long as it takes). A run that ends `partial` is returned: it has rows, and `run.reasons` says what is missing.
+        """
+        started = time.monotonic()
+        run = self.formulas.run(formula_id, params, preview=preview, unit_cap=unit_cap, row_cap=row_cap, wait=_server_wait(timeout),
+                                idempotency_key=idempotency_key)
+        if run.is_active:
+            remaining = None if timeout is None else max(0.0, timeout - (time.monotonic() - started))
+            run = self.formula_runs.wait(run.id, timeout=remaining, poll_interval=poll_interval)
+        if raise_on_failure:
+            run.raise_for_status()
+        return FormulaResult(self, run)
+
 
 class AsyncEnrichedNow(BaseClient):
     """The EnrichedNow API, for `asyncio`. The same surface as `EnrichedNow`; every call is awaited.
@@ -240,6 +385,12 @@ class AsyncEnrichedNow(BaseClient):
         self.usage = AsyncUsageResource(self)
         self.data = AsyncData(self)
         self.webhooks = AsyncWebhooks(self)
+        self.formulas = AsyncFormulas(self)
+        self.formula_runs = AsyncFormulaRuns(self)
+        self.saved_formulas = AsyncSavedFormulas(self)
+        self.suppressions = AsyncSuppressions(self)
+        self.attestations = AsyncAttestations(self)
+        self.formula_rows = AsyncFormulaRows(self)
 
     async def _request(
         self,
@@ -248,12 +399,13 @@ class AsyncEnrichedNow(BaseClient):
         *,
         params: Optional[Mapping[str, Any]] = None,
         json: Any = None,
+        content: Optional[bytes] = None,
         idempotent: bool = True,
         timeout: Any = USE_CLIENT_TIMEOUT,
         headers: Optional[Mapping[str, str]] = None,
         raw: bool = False,
     ) -> Any:
-        """The answer's JSON (`raw`: the answer itself, for a body that is not JSON)."""
+        """The answer's JSON (`raw`: the answer itself, for a body that is not JSON). `content` is a body sent as it is."""
         headers = {**self._headers, **headers} if headers else self._headers
         attempt = 0
         while True:
@@ -264,6 +416,7 @@ class AsyncEnrichedNow(BaseClient):
                     self._url(path),
                     params=clean_params(params),
                     json=json,
+                    content=content,
                     headers=headers,
                     timeout=self.timeout if timeout is USE_CLIENT_TIMEOUT else timeout,
                 )
@@ -327,3 +480,28 @@ class AsyncEnrichedNow(BaseClient):
         if raise_on_failure:
             run.raise_for_status()
         return AsyncScrapeResult(self, run)
+
+    async def run_formula(
+        self,
+        formula_id: str,
+        params: Optional[Params] = None,
+        *,
+        preview: bool = False,
+        unit_cap: Optional[int] = None,
+        row_cap: Optional[int] = None,
+        timeout: Optional[float] = DEFAULT_RUN_TIMEOUT,
+        poll_interval: float = DEFAULT_POLL_INTERVAL,
+        raise_on_failure: bool = True,
+        idempotency_key: Optional[str] = None,
+    ) -> AsyncFormulaResult:
+        """Run a formula, wait for it to end, and return it with its rows (`async for row in result`); see
+        `EnrichedNow.run_formula`."""
+        started = time.monotonic()
+        run = await self.formulas.run(formula_id, params, preview=preview, unit_cap=unit_cap, row_cap=row_cap,
+                                      wait=_server_wait(timeout), idempotency_key=idempotency_key)
+        if run.is_active:
+            remaining = None if timeout is None else max(0.0, timeout - (time.monotonic() - started))
+            run = await self.formula_runs.wait(run.id, timeout=remaining, poll_interval=poll_interval)
+        if raise_on_failure:
+            run.raise_for_status()
+        return AsyncFormulaResult(self, run)

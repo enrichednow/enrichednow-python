@@ -6,8 +6,12 @@
     result = client.scrape("ats.board", {"board_url": "https://boards.greenhouse.io/acme"})
     for record in result.records:
         print(record)
+
+    result = client.run_formula("job-order-hunter", {"job_titles": ["Java Developer"], "locations": ["London"]})
+    for row in result:
+        print(row.data)
 """
-from ._client import AsyncEnrichedNow, AsyncScrapeResult, EnrichedNow, ScrapeResult
+from ._client import AsyncEnrichedNow, AsyncFormulaResult, AsyncScrapeResult, EnrichedNow, FormulaResult, ScrapeResult
 from ._exceptions import (
     APIConnectionError,
     APIError,
@@ -26,7 +30,14 @@ from ._exceptions import (
     ValidationError,
     WaitTimeoutError,
     WebhookVerificationError,
+    PlanLimitReachedError,
+    AttestationRequiredError,
+    FormulaUnavailableError,
+    RequirementMissingError,
+    SavedFormulaArchivedError,
+    FormulaRunFailedError,
 )
+from ._formulas import NOT_GIVEN, NotGiven, RowFormat, RowView, ScheduleSpec, SuppressionKind, Verdict
 from ._models import (
     Change,
     Classification,
@@ -64,6 +75,35 @@ from ._models import (
     WebhookEvent,
     WebhookEventName,
     WebhookSecret,
+    Attestation,
+    Correction,
+    EntryProblem,
+    Estimate,
+    FieldProblem,
+    Formula,
+    FormulaColumn,
+    FormulaCompanyView,
+    FormulaDetails,
+    FormulaEstimate,
+    FormulaHealth,
+    FormulaInput,
+    FormulaPreset,
+    FormulaRequirements,
+    FormulaRow,
+    FormulaRun,
+    FormulaRunStep,
+    FormulaStep,
+    LastRun,
+    PlanLimits,
+    RowFeedback,
+    RowsExport,
+    SavedFormula,
+    SavedFormulaNote,
+    Schedule,
+    SeenReset,
+    Snapshot,
+    Suppression,
+    SuppressionUpload,
 )
 from ._pagination import AsyncPage, AsyncPaginator, AsyncRecordsPage, SyncPage, SyncRecordsPage
 from ._version import __version__
@@ -76,6 +116,8 @@ __all__ = [
     "AsyncEnrichedNow",
     "ScrapeResult",
     "AsyncScrapeResult",
+    "FormulaResult",
+    "AsyncFormulaResult",
     # errors
     "EnrichedNowError",
     "MissingAPIKeyError",
@@ -94,6 +136,12 @@ __all__ = [
     "RunFailedError",
     "WaitTimeoutError",
     "WebhookVerificationError",
+    "PlanLimitReachedError",
+    "AttestationRequiredError",
+    "FormulaUnavailableError",
+    "RequirementMissingError",
+    "SavedFormulaArchivedError",
+    "FormulaRunFailedError",
     # webhooks: verifying what arrives
     "verify_webhook",
     "parse_webhook",
@@ -140,4 +188,41 @@ __all__ = [
     "WebhookSecret",
     "WebhookDelivery",
     "WebhookEvent",
+    # formulas (each formula's parameters as a type: enrichednow.formula_params)
+    "NOT_GIVEN",
+    "NotGiven",
+    "RowFormat",
+    "RowView",
+    "ScheduleSpec",
+    "SuppressionKind",
+    "Verdict",
+    "Formula",
+    "FormulaHealth",
+    "FormulaInput",
+    "FormulaDetails",
+    "FormulaPreset",
+    "FormulaStep",
+    "FormulaColumn",
+    "FormulaCompanyView",
+    "FormulaRequirements",
+    "FormulaEstimate",
+    "Estimate",
+    "FieldProblem",
+    "FormulaRun",
+    "FormulaRunStep",
+    "FormulaRow",
+    "RowsExport",
+    "SavedFormula",
+    "Schedule",
+    "SavedFormulaNote",
+    "LastRun",
+    "SeenReset",
+    "Snapshot",
+    "PlanLimits",
+    "Suppression",
+    "SuppressionUpload",
+    "EntryProblem",
+    "Attestation",
+    "RowFeedback",
+    "Correction",
 ]

@@ -1,0 +1,27 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/v1/formula-rows/frow_000000000000000000000001/feedback",
+    "body": {
+      "verdict": "wrong_company",
+      "note": "This is the agency, not the employer.",
+      "correct_domain": "corvid.example"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "row_id": "frow_000000000000000000000001",
+      "verdict": "wrong_company",
+      "status": "flagged",
+      "correction": {
+        "company_name": "Corvid",
+        "country": "UK",
+        "domain": "corvid.example"
+      }
+    }
+  }
+}

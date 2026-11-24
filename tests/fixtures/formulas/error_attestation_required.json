@@ -1,0 +1,53 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/v1/formulas/job-order-hunter/runs",
+    "headers": {
+      "Idempotency-Key": "c0ffee-attest"
+    },
+    "body": {
+      "params": {
+        "job_titles": [
+          "Java Developer"
+        ],
+        "locations": [
+          "London"
+        ],
+        "posted_within_days": 2,
+        "title_exclude_keywords": [
+          "intern"
+        ],
+        "exclude_companies": [
+          "Blocked By Us Inc"
+        ],
+        "company_size": {
+          "min": 11,
+          "max": 5000
+        }
+      }
+    }
+  },
+  "response": {
+    "status": 409,
+    "headers": {
+      "content-type": "application/json",
+      "x-units-limit": "1000",
+      "x-units-used": "0",
+      "x-units-remaining": "1000",
+      "x-units-topup": "0",
+      "x-units-reset": "2026-11-25T09:04:30Z",
+      "x-ratelimit-limit": "2",
+      "x-ratelimit-remaining": "2"
+    },
+    "body": {
+      "error": {
+        "code": "attestation_required",
+        "message": "This formula returns people's contact details. An owner or an admin of the account must first accept the terms for it, on the console's Formulas page or with POST /v1/attestations.",
+        "details": {
+          "kind": "personal_data",
+          "text_version": "2026-11-24"
+        }
+      }
+    }
+  }
+}

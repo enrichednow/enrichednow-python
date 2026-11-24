@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/v1/saved-formulas/sf_000000000000000000000001/runs",
+    "headers": {
+      "Idempotency-Key": "c0ffee-saved-cap"
+    },
+    "body": {}
+  },
+  "response": {
+    "status": 402,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "error": {
+        "code": "limit_reached",
+        "message": "This saved formula's monthly cap of 3 units is reached: its runs have used or hold 4 this month. Raise the cap on the saved formula, or wait for next month.",
+        "details": {
+          "scope": "saved_formula",
+          "saved_formula_id": "sf_000000000000000000000001",
+          "limit_units": 3,
+          "used_units": 4,
+          "units_needed": 10
+        }
+      }
+    }
+  }
+}

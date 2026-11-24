@@ -1,0 +1,18 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/v1/saved-formulas/sf_000000000000000000000002/rows",
+    "query": {
+      "format": "csv",
+      "fields": "company_name,job_title,job_url"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/csv; charset=utf-8",
+      "content-disposition": "attachment; filename=\"sf_000000000000000000000002.csv\""
+    },
+    "text": "company_name,job_title,job_url\r\nCorvid,Java Developer (Remote),https://www.linkedin.com/jobs/view/java-developer-at-acme-4487824402\r\nCorvid,Java Consultant,https://www.indeed.com/viewjob?jk=0000000000000012\r\nNorthwind Ltd,Java Developer,https://www.linkedin.com/jobs/view/java-developer-at-acme-4487824401\r\nQuiet Agencies Ltd,Java Tester,https://www.linkedin.com/jobs/view/java-developer-at-acme-4487824408\r\n"
+  }
+}

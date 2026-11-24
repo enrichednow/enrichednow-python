@@ -1,0 +1,53 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/v1/formulas/job-order-hunter/runs",
+    "headers": {
+      "Idempotency-Key": "c0ffee-cap"
+    },
+    "body": {
+      "params": {
+        "job_titles": [
+          "Java Developer"
+        ],
+        "locations": [
+          "London"
+        ],
+        "posted_within_days": 2,
+        "title_exclude_keywords": [
+          "intern"
+        ],
+        "exclude_companies": [
+          "Blocked By Us Inc"
+        ],
+        "company_size": {
+          "min": 11,
+          "max": 5000
+        }
+      },
+      "unit_cap": 1
+    }
+  },
+  "response": {
+    "status": 422,
+    "headers": {
+      "content-type": "application/json",
+      "x-units-limit": "1000",
+      "x-units-used": "0",
+      "x-units-remaining": "1000",
+      "x-units-topup": "0",
+      "x-units-reset": "2026-11-25T09:04:30Z",
+      "x-ratelimit-limit": "2",
+      "x-ratelimit-remaining": "2"
+    },
+    "body": {
+      "error": {
+        "code": "unit_cap_too_low",
+        "message": "This formula needs a unit cap of at least 20 to return something useful.",
+        "details": {
+          "min_unit_cap": 20
+        }
+      }
+    }
+  }
+}

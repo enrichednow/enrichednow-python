@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "enrichednow"
-version = "0.3.1"
+version = "0.4.0"
 description = "The official Python library for the EnrichedNow API"
 readme = "README.md"
 license = { text = "MIT" }
@@ -44,4 +44,4 @@ pythonpath = ["src"]
 [tool.mypy]
 strict = true
 python_version = "3.9"
-files = ["src/enrichednow"]
+files = ["src/enrichednow", "examples"]

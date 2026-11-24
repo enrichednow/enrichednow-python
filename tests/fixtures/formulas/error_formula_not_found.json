@@ -1,0 +1,19 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/v1/formulas/no-such-formula"
+  },
+  "response": {
+    "status": 404,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "error": {
+        "code": "formula_not_found",
+        "message": "There is no formula 'no-such-formula'.",
+        "details": {}
+      }
+    }
+  }
+}

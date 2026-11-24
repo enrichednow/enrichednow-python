@@ -1,0 +1,25 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/v1/attestations"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "attestations": [
+        {
+          "kind": "personal_data",
+          "title": "Formulas that return people",
+          "text": "Some formulas return people's names and business contact details. By accepting, you confirm for this account that: you have a lawful basis for contacting the people these formulas return; you will use the rows for business contact only; you will honour every request to opt out, and add it to the account's suppression list; and you will follow the email and telephone marketing rules of each recipient's country. You can read what each formula returns on its page before you run it.",
+          "text_version": "2026-11-24",
+          "accepted": true,
+          "accepted_at": "2026-11-25T09:00:01.250000Z",
+          "accepted_by": "ada@example.com"
+        }
+      ]
+    }
+  }
+}

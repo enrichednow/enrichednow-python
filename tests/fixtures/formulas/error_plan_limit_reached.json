@@ -1,0 +1,36 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/v1/saved-formulas",
+    "body": {
+      "formula_id": "posting-watch",
+      "params": {
+        "terms": [
+          "java"
+        ]
+      },
+      "schedule": {
+        "cadence": "hourly",
+        "local_time": "07:30",
+        "timezone": "Europe/London"
+      }
+    }
+  },
+  "response": {
+    "status": 403,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "error": {
+        "code": "plan_limit_reached",
+        "message": "The account's plan runs a saved formula at most daily. Choose a longer cadence, or change the plan on the Billing page.",
+        "details": {
+          "limit": "min_interval_minutes",
+          "allowed": 1440,
+          "asked": 60
+        }
+      }
+    }
+  }
+}

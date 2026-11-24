@@ -60,7 +60,7 @@ def test_base_url_is_configurable_and_the_key_is_not_in_the_repr(api: FakeAPI) -
 
 
 def test_version() -> None:
-    assert enrichednow.__version__ == "0.3.1"
+    assert enrichednow.__version__ == "0.4.0"
 
 
 # --- scrapers ---------------------------------------------------------------------------------------------------------

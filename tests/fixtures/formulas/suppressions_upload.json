@@ -1,0 +1,26 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/v1/suppressions/upload",
+    "headers": {
+      "Content-Type": "text/csv"
+    },
+    "text": "kind,value\ndomain,hooli.example\nemail,gavin@hooli.example\ncompany_name,Pied Piper\nemail,not an address\n"
+  },
+  "response": {
+    "status": 201,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "added": 3,
+      "already": 0,
+      "invalid": [
+        {
+          "index": 5,
+          "message": "'not an address' is not a email that can be matched."
+        }
+      ]
+    }
+  }
+}

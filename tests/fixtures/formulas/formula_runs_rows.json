@@ -1,0 +1,257 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/v1/formula-runs/frun_000000000000000000000002/rows",
+    "query": {
+      "limit": "2"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json",
+      "x-units-limit": "1000",
+      "x-units-used": "41",
+      "x-units-remaining": "959",
+      "x-units-topup": "0",
+      "x-units-reset": "2026-11-25T09:04:30Z",
+      "x-ratelimit-limit": "2",
+      "x-ratelimit-remaining": "2"
+    },
+    "body": {
+      "rows": [
+        {
+          "id": "frow_000000000000000000000001",
+          "run_id": "frun_000000000000000000000002",
+          "row_key": "corvid-demo.com|java developer|london uk|careers@corvid-demo.com",
+          "data": {
+            "score": 20,
+            "job_url": "https://www.linkedin.com/jobs/view/java-developer-at-acme-4487824402",
+            "sources": [
+              "linkedin"
+            ],
+            "industry": "Software Development",
+            "days_open": 0,
+            "employees": "201-500 employees",
+            "job_title": "Java Developer (Remote)",
+            "posted_at": "2026-11-24",
+            "open_roles": 2,
+            "company_name": "Corvid",
+            "contact_name": null,
+            "email_status": "risky",
+            "headquarters": "London",
+            "job_location": "London, UK",
+            "technologies": [
+              "Java",
+              "AWS"
+            ],
+            "contact_email": "careers@corvid-demo.com",
+            "contact_phone": null,
+            "contact_title": null,
+            "company_domain": "corvid-demo.com",
+            "employment_type": "full_time",
+            "on_careers_page": false,
+            "no_agencies_flag": false,
+            "careers_page_roles": 0,
+            "contact_profile_url": null
+          },
+          "score": 20.0,
+          "evidence": {
+            "fields": {
+              "job_url": 0,
+              "industry": 2,
+              "employees": 2,
+              "job_title": 0,
+              "posted_at": 0,
+              "company_name": 0,
+              "email_status": 7,
+              "headquarters": 2,
+              "job_location": 0,
+              "technologies": 5,
+              "contact_email": 6,
+              "company_domain": 1,
+              "employment_type": 3,
+              "no_agencies_flag": 4
+            },
+            "sources": [
+              {
+                "url": "https://www.linkedin.com/jobs/view/java-developer-at-acme-4487824402",
+                "run_id": "run_000000000000000000000001",
+                "scraper": "linkedin.jobs_search",
+                "fetched_at": "2026-11-25T09:00:00Z"
+              },
+              {
+                "url": "https://corvid-demo.com/",
+                "run_id": null,
+                "scraper": "resolve.own_website",
+                "fetched_at": null
+              },
+              {
+                "url": "https://www.linkedin.com/company/corvid",
+                "run_id": "run_000000000000000000000002",
+                "scraper": "linkedin.company",
+                "fetched_at": "2026-11-25T09:00:00Z"
+              },
+              {
+                "url": "https://www.linkedin.com/jobs/view/java-developer-at-acme-4487824402",
+                "run_id": null,
+                "scraper": "classify.contract_type",
+                "fetched_at": null
+              },
+              {
+                "url": "https://www.linkedin.com/jobs/view/java-developer-at-acme-4487824402",
+                "run_id": null,
+                "scraper": "classify.no_agencies",
+                "fetched_at": null
+              },
+              {
+                "url": "https://www.linkedin.com/jobs/view/java-developer-at-acme-4487824402",
+                "run_id": null,
+                "scraper": "classify.technologies",
+                "fetched_at": null
+              },
+              {
+                "url": "https://corvid-demo.com/",
+                "run_id": "run_000000000000000000000003",
+                "scraper": "web.contacts",
+                "fetched_at": "2026-11-25T09:00:00Z"
+              },
+              {
+                "url": null,
+                "run_id": null,
+                "scraper": "verify.built_in",
+                "fetched_at": null
+              }
+            ],
+            "attempts": [
+              {
+                "step": "verify_kept",
+                "result": "risky",
+                "provider": "built_in",
+                "capability": "email_verify"
+              }
+            ]
+          },
+          "status": "new",
+          "first_seen_at": "2026-11-25T09:01:19.250000Z"
+        },
+        {
+          "id": "frow_000000000000000000000002",
+          "run_id": "frun_000000000000000000000002",
+          "row_key": "corvid-demo.com|java consultant|london uk|careers@corvid-demo.com",
+          "data": {
+            "score": 20,
+            "job_url": "https://www.indeed.com/viewjob?jk=0000000000000012",
+            "sources": [
+              "indeed"
+            ],
+            "industry": "Software Development",
+            "days_open": 0,
+            "employees": "201-500 employees",
+            "job_title": "Java Consultant",
+            "posted_at": "2026-11-24",
+            "open_roles": 2,
+            "company_name": "Corvid",
+            "contact_name": null,
+            "email_status": "risky",
+            "headquarters": "London",
+            "job_location": "London, UK",
+            "technologies": [
+              "Java",
+              "AWS"
+            ],
+            "contact_email": "careers@corvid-demo.com",
+            "contact_phone": null,
+            "contact_title": null,
+            "company_domain": "corvid-demo.com",
+            "employment_type": "full_time",
+            "on_careers_page": false,
+            "no_agencies_flag": false,
+            "careers_page_roles": 0,
+            "contact_profile_url": null
+          },
+          "score": 20.0,
+          "evidence": {
+            "fields": {
+              "job_url": 0,
+              "industry": 2,
+              "employees": 2,
+              "job_title": 0,
+              "posted_at": 0,
+              "company_name": 0,
+              "email_status": 7,
+              "headquarters": 2,
+              "job_location": 0,
+              "technologies": 5,
+              "contact_email": 6,
+              "company_domain": 1,
+              "employment_type": 3,
+              "no_agencies_flag": 4
+            },
+            "sources": [
+              {
+                "url": "https://www.indeed.com/viewjob?jk=0000000000000012",
+                "run_id": "run_000000000000000000000004",
+                "scraper": "indeed.jobs_search",
+                "fetched_at": "2026-11-25T09:00:00Z"
+              },
+              {
+                "url": "https://corvid-demo.com/",
+                "run_id": null,
+                "scraper": "resolve.own_website",
+                "fetched_at": null
+              },
+              {
+                "url": "https://www.linkedin.com/company/corvid",
+                "run_id": "run_000000000000000000000002",
+                "scraper": "linkedin.company",
+                "fetched_at": "2026-11-25T09:00:00Z"
+              },
+              {
+                "url": "https://www.indeed.com/viewjob?jk=0000000000000012",
+                "run_id": null,
+                "scraper": "classify.contract_type",
+                "fetched_at": null
+              },
+              {
+                "url": "https://www.indeed.com/viewjob?jk=0000000000000012",
+                "run_id": null,
+                "scraper": "classify.no_agencies",
+                "fetched_at": null
+              },
+              {
+                "url": "https://www.indeed.com/viewjob?jk=0000000000000012",
+                "run_id": null,
+                "scraper": "classify.technologies",
+                "fetched_at": null
+              },
+              {
+                "url": "https://corvid-demo.com/",
+                "run_id": "run_000000000000000000000003",
+                "scraper": "web.contacts",
+                "fetched_at": "2026-11-25T09:00:00Z"
+              },
+              {
+                "url": null,
+                "run_id": null,
+                "scraper": "verify.built_in",
+                "fetched_at": null
+              }
+            ],
+            "attempts": [
+              {
+                "step": "verify_kept",
+                "result": "risky",
+                "provider": "built_in",
+                "capability": "email_verify"
+              }
+            ]
+          },
+          "status": "new",
+          "first_seen_at": "2026-11-25T09:01:19.250000Z"
+        }
+      ],
+      "next_cursor": "Mg"
+    }
+  }
+}

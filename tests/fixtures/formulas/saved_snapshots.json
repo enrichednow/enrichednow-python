@@ -1,0 +1,37 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/v1/saved-formulas/sf_000000000000000000000001/snapshots",
+    "query": {
+      "entity_key": "https://board.example/1"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "snapshots": [
+        {
+          "entity": "job",
+          "entity_key": "https://board.example/1",
+          "fields": {
+            "job.title": "Senior Java Developer"
+          },
+          "run_id": "frun_000000000000000000000005",
+          "observed_at": "2026-11-25T09:04:27.250000Z"
+        },
+        {
+          "entity": "job",
+          "entity_key": "https://board.example/1",
+          "fields": {
+            "job.title": "Java Developer"
+          },
+          "run_id": "frun_000000000000000000000006",
+          "observed_at": "2026-11-25T09:04:26.250000Z"
+        }
+      ]
+    }
+  }
+}

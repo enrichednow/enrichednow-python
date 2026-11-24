@@ -1,0 +1,38 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/v1/formulas/retired-formula/runs",
+    "headers": {
+      "Idempotency-Key": "c0ffee-retired"
+    },
+    "body": {
+      "params": {
+        "terms": [
+          "java"
+        ]
+      }
+    }
+  },
+  "response": {
+    "status": 409,
+    "headers": {
+      "content-type": "application/json",
+      "x-units-limit": "1000",
+      "x-units-used": "0",
+      "x-units-remaining": "1000",
+      "x-units-topup": "0",
+      "x-units-reset": "2026-11-25T09:04:30Z",
+      "x-ratelimit-limit": "2",
+      "x-ratelimit-remaining": "2"
+    },
+    "body": {
+      "error": {
+        "code": "formula_unavailable",
+        "message": "The formula retired-formula is deprecated and cannot be run.",
+        "details": {
+          "status": "deprecated"
+        }
+      }
+    }
+  }
+}

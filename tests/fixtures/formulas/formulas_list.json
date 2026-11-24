@@ -1,0 +1,138 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/v1/formulas"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "formulas": [
+        {
+          "id": "data-formula",
+          "version": "1.0.0",
+          "title": "Data formula",
+          "summary": "A demo formula.",
+          "use_when": "Use in tests.",
+          "category": "research",
+          "personas": [
+            "developer"
+          ],
+          "status": "live",
+          "available": false,
+          "needs_provider": false,
+          "recommended_cadence": "once",
+          "schedules": [],
+          "needs_attestation": false,
+          "health": {
+            "status": "ok",
+            "degraded_sources": [],
+            "success_rate_7d": null,
+            "median_seconds_7d": null
+          },
+          "basics": [
+            {
+              "name": "terms",
+              "title": "Terms",
+              "type": "list of strings",
+              "required": true,
+              "help": null
+            }
+          ]
+        },
+        {
+          "id": "job-order-hunter",
+          "version": "1.1.0",
+          "title": "Job Order Hunter",
+          "summary": "Companies newly hiring for your roles and places, qualified by size and industry, with the person to contact.",
+          "use_when": "Use when a recruiter wants companies hiring for given roles in given places, with someone to call about the job.",
+          "category": "recruiting",
+          "personas": [
+            "recruiter",
+            "research_analyst",
+            "staffing_agency"
+          ],
+          "status": "beta",
+          "available": true,
+          "needs_provider": true,
+          "recommended_cadence": "weekdays",
+          "schedules": [
+            "daily",
+            "weekdays",
+            "weekly"
+          ],
+          "needs_attestation": true,
+          "health": {
+            "status": "ok",
+            "degraded_sources": [],
+            "success_rate_7d": null,
+            "median_seconds_7d": null
+          },
+          "basics": [
+            {
+              "name": "job_titles",
+              "title": "Job titles",
+              "type": "list of strings",
+              "required": true,
+              "help": "The roles you recruit for, each searched as you type it."
+            },
+            {
+              "name": "locations",
+              "title": "Locations",
+              "type": "list of strings",
+              "required": true,
+              "help": "A city, region or country for each place you cover."
+            },
+            {
+              "name": "posted_within_days",
+              "title": "Posted within (days)",
+              "type": "integer",
+              "required": false,
+              "help": "Only jobs posted in the last this many days."
+            }
+          ]
+        },
+        {
+          "id": "posting-watch",
+          "version": "1.0.0",
+          "title": "Posting watch",
+          "summary": "Postings on a board, each time one changes.",
+          "use_when": "Use to follow what a board lists.",
+          "category": "research",
+          "personas": [
+            "developer"
+          ],
+          "status": "live",
+          "available": true,
+          "needs_provider": false,
+          "recommended_cadence": "daily",
+          "schedules": [
+            "hourly",
+            "daily",
+            "weekdays",
+            "weekly",
+            "monthly"
+          ],
+          "needs_attestation": false,
+          "health": {
+            "status": "ok",
+            "degraded_sources": [],
+            "success_rate_7d": null,
+            "median_seconds_7d": null
+          },
+          "basics": [
+            {
+              "name": "terms",
+              "title": "Terms",
+              "type": "list of strings",
+              "required": true,
+              "help": null
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

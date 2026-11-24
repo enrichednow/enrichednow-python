@@ -1,0 +1,121 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/v1/formulas/job-order-hunter/runs",
+    "headers": {
+      "Idempotency-Key": "c0ffee-run-1"
+    },
+    "body": {
+      "params": {
+        "job_titles": [
+          "Java Developer"
+        ],
+        "locations": [
+          "London"
+        ],
+        "posted_within_days": 2,
+        "title_exclude_keywords": [
+          "intern"
+        ],
+        "exclude_companies": [
+          "Blocked By Us Inc"
+        ],
+        "company_size": {
+          "min": 11,
+          "max": 5000
+        }
+      },
+      "unit_cap": 2000
+    }
+  },
+  "response": {
+    "status": 202,
+    "headers": {
+      "content-type": "application/json",
+      "x-units-limit": "1000",
+      "x-units-used": "0",
+      "x-units-remaining": "1000",
+      "x-units-topup": "0",
+      "x-units-reset": "2026-11-25T09:04:30Z",
+      "x-ratelimit-limit": "2",
+      "x-ratelimit-remaining": "1"
+    },
+    "body": {
+      "id": "frun_000000000000000000000002",
+      "formula_id": "job-order-hunter",
+      "version": "1.1.0",
+      "saved_formula_id": null,
+      "status": "queued",
+      "reason": null,
+      "reasons": [],
+      "mode": "full",
+      "trigger": "api",
+      "params": {
+        "sources": [
+          "linkedin",
+          "indeed",
+          "google_jobs"
+        ],
+        "locations": [
+          "London"
+        ],
+        "job_titles": [
+          "Java Developer"
+        ],
+        "max_results": 200,
+        "company_size": {
+          "max": 5000,
+          "min": 11
+        },
+        "contact_titles": [
+          "Talent Acquisition",
+          "HR Manager",
+          "Hiring Manager"
+        ],
+        "min_open_roles": 1,
+        "title_synonyms": false,
+        "employment_types": [],
+        "target_companies": [],
+        "careers_pages_max": 25,
+        "contact_seniority": [
+          "manager",
+          "director",
+          "vp",
+          "c_level"
+        ],
+        "exclude_companies": [
+          "Blocked By Us Inc"
+        ],
+        "industries_exclude": [],
+        "industries_include": [],
+        "posted_within_days": 2,
+        "results_per_search": 50,
+        "check_careers_pages": true,
+        "contacts_per_company": 2,
+        "resurface_after_days": 45,
+        "require_verified_email": true,
+        "title_exclude_keywords": [
+          "intern"
+        ],
+        "exclude_staffing_agencies": true
+      },
+      "estimate": {
+        "min_units": 1,
+        "expected_units": 63,
+        "max_units": 1425,
+        "expected_rows": 1,
+        "basis": "2 searches across 2 sources, about 1 row"
+      },
+      "unit_cap": 2000,
+      "row_cap": 200,
+      "units_spent": 0,
+      "rows_total": 0,
+      "include_seen": false,
+      "scheduled_for": null,
+      "steps": [],
+      "created_at": "2026-11-25T09:00:02.250000Z",
+      "started_at": null,
+      "finished_at": null
+    }
+  }
+}

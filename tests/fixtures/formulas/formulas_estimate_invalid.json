@@ -1,0 +1,31 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/v1/formulas/job-order-hunter/estimate",
+    "body": {
+      "params": {
+        "locations": [
+          "London"
+        ]
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "valid": false,
+      "errors": [
+        {
+          "path": "params.job_titles",
+          "message": "This is required."
+        }
+      ],
+      "estimate": null,
+      "missing": [],
+      "not_offered": []
+    }
+  }
+}

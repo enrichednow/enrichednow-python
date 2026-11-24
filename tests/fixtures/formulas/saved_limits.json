@@ -1,0 +1,19 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/v1/saved-formulas/limits"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "schedules": 3,
+      "schedules_active": 1,
+      "min_interval_minutes": 1440,
+      "row_retention_days": 90,
+      "destinations": 3
+    }
+  }
+}

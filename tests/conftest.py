@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
 
 import httpx
@@ -39,6 +40,44 @@ def error_json(code: str, message: str = "No.", details: Optional[Dict[str, Any]
 
 def ok(body: Any, status: int = 200, headers: Optional[Dict[str, str]] = None) -> httpx.Response:
     return httpx.Response(status, json=body, headers=headers)
+
+
+FIXTURES = Path(__file__).parent / "fixtures" / "formulas"
+
+
+def exchange(name: str) -> Dict[str, Any]:
+    """A recorded exchange of the formula routes: the request the API was sent and what it answered
+    (`tests/fixtures/formulas/<name>.json`)."""
+    loaded: Dict[str, Any] = json.loads((FIXTURES / f"{name}.json").read_text(encoding="utf-8"))
+    return loaded
+
+
+def recorded(name: str, **body_changes: Any) -> httpx.Response:
+    """The recorded answer `name`, as the API sent it; `body_changes` replaces fields of a JSON body."""
+    answer = exchange(name)["response"]
+    headers = dict(answer["headers"])
+    if "body" in answer:
+        headers.pop("content-type", None)
+        return httpx.Response(answer["status"], json={**answer["body"], **body_changes}, headers=headers)
+    if "text" in answer:
+        return httpx.Response(answer["status"], content=answer["text"].encode("utf-8"), headers=headers)
+    return httpx.Response(answer["status"], headers=headers)
+
+
+def assert_sent(request: httpx.Request, name: str) -> None:
+    """The request is the recorded one: method, path, query and body (the Idempotency-Key is each call's own)."""
+    expected = exchange(name)["request"]
+    assert request.method == expected["method"]
+    assert request.url.path == expected["path"]
+    assert dict(request.url.params) == expected.get("query", {})
+    if "body" in expected:
+        assert json.loads(request.content) == expected["body"]
+    elif "text" in expected:
+        assert request.content.decode("utf-8") == expected["text"]
+    else:
+        assert not request.content
+    if "Idempotency-Key" in expected.get("headers", {}):
+        assert request.headers.get("idempotency-key")
 
 
 class FakeAPI:
